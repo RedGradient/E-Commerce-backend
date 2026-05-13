@@ -24,14 +24,6 @@ async def dispose_engine() -> None:
         _engine = None
 
 
-def create_redis_client() -> Redis:
-    return Redis.from_url(settings.redis_dsn, encoding="utf-8", decode_responses=True)
-
-
-async def create_rabbit_connection() -> aio_pika.abc.AbstractRobustConnection:
-    return await aio_pika.connect_robust(settings.rabbitmq_dsn)
-
-
 async def check_postgres(engine: AsyncEngine) -> None:
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))

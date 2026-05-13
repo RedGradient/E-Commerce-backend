@@ -3,17 +3,18 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.cache import dispose_redis, get_or_create_redis_client
 from app.config import settings
+from app.exception_handlers import register_exception_handlers
 from app.infra import (
     check_postgres,
     check_rabbit,
     check_redis,
-    create_rabbit_connection,
-    create_redis_client,
     dispose_engine,
     get_or_create_db_engine,
 )
 from app.integrations.stripe_client import StripeClient
+from app.messaging import dispose_rabbit, get_or_create_rabbit_connection
 from app.routers import orders, products
 
 
@@ -21,7 +22,7 @@ async def connect_rabbit_with_retry(retries: int = 15, delay_seconds: int = 2):
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
-            return await create_rabbit_connection()
+            return await get_or_create_rabbit_connection()
         except Exception as exc:  # noqa: BLE001 - startup retry should catch transport failures
             last_error = exc
             if attempt == retries:
@@ -33,19 +34,20 @@ async def connect_rabbit_with_retry(retries: int = 15, delay_seconds: int = 2):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.db_engine = get_or_create_db_engine()
-    app.state.redis = create_redis_client()
-    app.state.rabbit = await connect_rabbit_with_retry()
+    app.state.redis = get_or_create_redis_client()
+    app.state.rabbit = await get_or_create_rabbit_connection()
     app.state.stripe = StripeClient()
     yield
     await dispose_engine()
-    await app.state.redis.aclose()
-    await app.state.rabbit.close()
+    await dispose_redis()
+    await dispose_rabbit()
     await app.state.stripe.close()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.include_router(orders.router)
 app.include_router(products.router)
+register_exception_handlers(app)
 
 
 @app.get("/health/live")

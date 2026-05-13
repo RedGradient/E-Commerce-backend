@@ -1,22 +1,36 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import Enum
 
-from sqlalchemy import (
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-)
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
 Base = declarative_base()
+
+
+class OrderStatus(Enum):
+    Created = "created"
+    Paid = "paid"
 
 
 class Order(Base):
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    status: Mapped[OrderStatus] = mapped_column(
+        SQLEnum(OrderStatus),
+        default=OrderStatus.Created,
+        server_default=text("'Created'"),
+        nullable=False,
+    )
+
+    payment_intent_id: Mapped[str | None]
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

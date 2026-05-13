@@ -1,9 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.integrations.stripe_client import StripeClient
 from app.models import Order, OrderItem, Product
-from app.schemas.orders import OrderCreate, OrderItemCreate, OrderItemRead, OrderRead
+from app.schemas.orders import (
+    CheckoutResponse,
+    OrderCreate,
+    OrderItemCreate,
+    OrderItemRead,
+    OrderRead,
+)
+from app.services.checkout import CheckoutService
 from app.session import get_db_session
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -115,3 +123,13 @@ async def get_order_item(
         )
 
     return order_item
+
+
+@router.post("/{order_id}/checkout", response_model=CheckoutResponse)
+async def checkout_order(
+    order_id: int,
+    idempotency_key: str = Header(alias="Idempotency-Key"),
+    session: AsyncSession = Depends(get_db_session),
+):
+    checkout_service = CheckoutService(StripeClient())
+    return await checkout_service.checkout(order_id, idempotency_key, session)

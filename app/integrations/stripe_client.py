@@ -1,6 +1,22 @@
+import hashlib
+from decimal import Decimal
+
 import httpx
+from pydantic import BaseModel
 
 from app.config import settings
+
+
+class StripePaymentIntent(BaseModel):
+    id: str
+    status: str
+    amount: Decimal
+    currency: str
+
+
+class StripePaymentError(Exception):
+    def __init__(self, *args: object) -> None:
+        super().__init__(*args)
 
 
 class StripeClient:
@@ -18,3 +34,23 @@ class StripeClient:
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def create_payment_intent(
+        self,
+        amount: Decimal,
+        idempotency_key: str,
+        currency: str,
+        metadata: dict[str, str] | None = None,
+    ) -> StripePaymentIntent:
+        intent_id = (
+            "pi_test_" + hashlib.sha256(idempotency_key.encode()).hexdigest()[:24]
+        )
+
+        payment_intent = StripePaymentIntent(
+            id=intent_id, status="succeeded", amount=amount, currency=currency
+        )
+
+        if payment_intent.status != "succeeded":
+            raise StripePaymentError
+
+        return payment_intent

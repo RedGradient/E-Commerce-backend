@@ -4,8 +4,10 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models import OrderStatus
+
 Quantity = Annotated[int, Field(gt=0)]
-Price = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
+Money = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
 
 
 class OrderItemCreate(BaseModel):
@@ -23,8 +25,8 @@ class OrderItemRead(BaseModel):
     id: int
     product_id: int
     quantity: int
-    unit_price: Price
-    total_price: Price
+    unit_price: Money
+    total_price: Money
 
 
 class OrderRead(BaseModel):
@@ -32,5 +34,17 @@ class OrderRead(BaseModel):
 
     id: int
     created_at: datetime
-    total_price: Price
+    total_price: Money
+    status: OrderStatus
+    paid_at: datetime | None = None
     items: list[OrderItemRead]
+
+
+class CheckoutResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    order_id: int
+    payment_intent_id: str
+    status: OrderStatus
+    amount: Money
+    currency: str
+    paid_at: datetime
