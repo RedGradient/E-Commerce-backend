@@ -5,12 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.integrations.stripe_client import StripeClient
 from app.models import Order, OrderItem, Product
 from app.schemas.orders import (
+    CancelOrderRequest,
+    CancelOrderResponse,
     CheckoutResponse,
     OrderCreate,
     OrderItemCreate,
     OrderItemRead,
     OrderRead,
 )
+from app.services.cancellation import CancellationService
 from app.services.checkout import CheckoutService
 from app.session import get_db_session
 
@@ -133,3 +136,13 @@ async def checkout_order(
 ):
     checkout_service = CheckoutService(StripeClient())
     return await checkout_service.checkout(order_id, idempotency_key, session)
+
+
+@router.post("/{order_id}/cancel", response_model=CancelOrderResponse)
+async def cancel_order(
+    order_id: int,
+    payload: CancelOrderRequest,
+    session: AsyncSession = Depends(get_db_session),
+):
+    service = CancellationService()
+    return await service.cancel(order_id, session, payload.reason)

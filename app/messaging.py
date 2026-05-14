@@ -23,6 +23,7 @@ async def dispose_rabbit():
 
 ORDER_EVENTS_EXCHANGE = "order.events"
 ORDER_PAID_ROUTING_KEY = "order.paid"
+ORDER_CANCELLED_ROUTING_KEY = "order.cancelled"
 
 
 async def _get_order_events_exchange(
@@ -50,4 +51,22 @@ async def publish_order_paid(payload: dict) -> None:
         await exchange.publish(
             message=message,
             routing_key=ORDER_PAID_ROUTING_KEY,
+        )
+
+
+async def publish_order_cancelled(payload: dict) -> None:
+    connection = await get_or_create_rabbit_connection()
+
+    async with connection.channel() as channel:
+        exchange = await _get_order_events_exchange(channel)
+
+        message = aio_pika.Message(
+            body=json.dumps(payload).encode("utf-8"),
+            content_type="application/json",
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+        )
+
+        await exchange.publish(
+            message=message,
+            routing_key=ORDER_CANCELLED_ROUTING_KEY,
         )

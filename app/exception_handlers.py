@@ -1,6 +1,10 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.services.cancellation import (
+    OrderAlreadyCancelled,
+    OrderNotCancellable,
+)
 from app.services.checkout import (
     IdempotencyInProgress,
     OrderNotFound,
@@ -37,4 +41,22 @@ def register_exception_handlers(app: FastAPI):
         return JSONResponse(
             status_code=409,
             content={"detail": "checkout request is already being processed"},
+        )
+
+    @app.exception_handler(OrderNotCancellable)
+    async def order_not_cancellable_handler(
+        request: Request, exc: OrderNotCancellable
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "order cannot be cancelled in current status"},
+        )
+
+    @app.exception_handler(OrderAlreadyCancelled)
+    async def order_already_cancelled_handler(
+        request: Request, exc: OrderAlreadyCancelled
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "order is already cancelled"},
         )

@@ -48,3 +48,16 @@ class CheckoutResponse(BaseModel):
     amount: Money
     currency: str
     paid_at: datetime
+
+
+class CancelOrderRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=255)
+
+
+class CancelOrderResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    order_id: int
+    status: OrderStatus
+    cancelled_at: datetime
+    cancel_reason: str | None = None
