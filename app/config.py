@@ -36,6 +36,14 @@ class Settings(BaseSettings):
         )
 
     @property
+    def postgres_sync_dsn(self) -> str:
+        """Sync DSN for Alembic migrations (psycopg2)."""
+        return (
+            f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
     def redis_dsn(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/0"
 
