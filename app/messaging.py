@@ -23,6 +23,7 @@ async def dispose_rabbit():
 
 ORDER_EVENTS_EXCHANGE = "order.events"
 ORDER_PAID_ROUTING_KEY = "order.paid"
+ORDER_PROCESSING_ROUTING_KEY = "order.processing"
 
 
 async def _get_order_events_exchange(

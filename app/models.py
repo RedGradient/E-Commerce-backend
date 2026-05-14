@@ -11,6 +11,7 @@ Base = declarative_base()
 
 class OrderStatus(Enum):
     Created = "created"
+    Processing = "processing"
     Paid = "paid"
 
 
@@ -22,7 +23,7 @@ class Order(Base):
     status: Mapped[OrderStatus] = mapped_column(
         SQLEnum(OrderStatus),
         default=OrderStatus.Created,
-        server_default=text("'Created'"),
+        server_default=text("'created'"),
         nullable=False,
     )
 

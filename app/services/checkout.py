@@ -56,7 +56,7 @@ class CheckoutService:
         order = await session.get(Order, order_id)
         if order is None:
             raise OrderNotFound()
-        if order.status != OrderStatus.Created:
+        if order.status not in {OrderStatus.Created, OrderStatus.Processing}:
             raise OrderNotPayable()
 
         # Raise an error if idempotency key already exists in Redis
@@ -67,6 +67,10 @@ class CheckoutService:
             raise IdempotencyInProgress()
 
         try:
+            order.status = OrderStatus.Processing
+            session.add(order)
+            await session.flush()
+
             payment_intent = await self._stripe.create_payment_intent(
                 order.total_price,
                 idempotency_key,
