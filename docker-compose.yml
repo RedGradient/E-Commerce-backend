@@ -15,6 +15,17 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  order-events-worker:
+    build: .
+    container_name: worker
+    env_file:
+      - .env
+    command: ["python", "-m", "app.workers.order_events_consumer"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: commerce_postgres
