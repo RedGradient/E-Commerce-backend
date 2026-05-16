@@ -15,7 +15,7 @@ from app.infra import (
 )
 from app.integrations.stripe_client import StripeClient
 from app.messaging import dispose_rabbit, get_or_create_rabbit_connection
-from app.routers import orders, products
+from app.routers import orders, products, webhooks
 
 
 async def connect_rabbit_with_retry(retries: int = 15, delay_seconds: int = 2):
@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.include_router(orders.router)
 app.include_router(products.router)
+app.include_router(webhooks.router)
 register_exception_handlers(app)
 
 

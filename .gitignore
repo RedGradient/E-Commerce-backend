@@ -5,4 +5,4 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .env
-TEAM_TASK_ALEMBIC.md
+.vscode/

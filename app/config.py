@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     stripe_base_url: str = "https://api.stripe.com"
     stripe_api_key: str = "replace-with-secret"
 
+    webhook_secret_key: str = "replace-with-secret"
+
     default_idempotency_ttl_seconds: int = 24 * 60 * 60
 
     @property

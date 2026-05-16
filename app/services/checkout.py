@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,9 +8,12 @@ from app.cache import (
     reserve_idempotency,
     save_idempotency_result,
 )
-from app.integrations.stripe_client import StripeClient, StripePaymentError
+from app.integrations.stripe_client import (
+    StripeClient,
+    StripePaymentError,
+    StripePaymentIntent,
+)
 from app.models.models import Order, OrderStatus
-from app.models.outbox import Outbox
 
 
 class OrderNotPayable(Exception):
@@ -61,26 +63,23 @@ class CheckoutService:
             raise IdempotencyInProgress()
 
         try:
-            order.status = OrderStatus.Processing
-            await session.flush()
             payment_intent = await self._charge(order, idempotency_key)
+
+            order.status = OrderStatus.Processing
+            order.payment_intent_id = payment_intent.id
+            await session.flush()
         except StripePaymentError as err:
             await release_idempotency_key(idempotency_key)
             raise PaymentFailed() from err
 
-        apply_order_paid(order, payment_intent.id, paid_at=datetime.now(UTC))
-
-        payload = build_checkout_payload(order)
-
-        outbox_message = outbox_checkout_message(order.id, payload)
-        session.add(outbox_message)
         await session.commit()
 
+        payload = build_checkout_payload(order)
         await save_idempotency_result(idempotency_key, payload)
 
         return payload
 
-    async def _charge(self, order: Order, idempotency_key: str):
+    async def _charge(self, order: Order, idempotency_key: str) -> StripePaymentIntent:
         return await self._stripe.create_payment_intent(
             order.total_price,
             idempotency_key,
@@ -97,12 +96,6 @@ def validate_order(order: Order | None) -> Order:
     return order
 
 
-def apply_order_paid(order: Order, payment_intent_id: str, paid_at: datetime) -> None:
-    order.status = OrderStatus.Paid
-    order.payment_intent_id = payment_intent_id
-    order.paid_at = paid_at
-
-
 def build_checkout_payload(order: Order) -> dict[str, Any]:
     return {
         "order_id": order.id,
@@ -110,7 +103,7 @@ def build_checkout_payload(order: Order) -> dict[str, Any]:
         "status": order.status.value,
         "amount": str(order.total_price),
         "currency": "usd",
-        "paid_at": order.paid_at.isoformat() if order.paid_at else None,
+        # "paid_at": order.paid_at.isoformat() if order.paid_at else None,
     }
 
 
@@ -121,7 +114,3 @@ async def read_idempotency(key: str) -> dict | None:
     if res["status"] == "completed":
         return res["payload"]  # готовый ответ
     raise IdempotencyInProgress()  # processing — как в твоих блоках
-
-
-def outbox_checkout_message(order_id: int, payload: dict) -> Outbox:
-    return Outbox(event_type="order.paid", order_id=order_id, payload=payload)

@@ -10,7 +10,7 @@ select = [
     "B",   # bugbear
     "UP",  # pyupgrade
 ]
-ignore = ["B008"]
+ignore = ["B008", "UP012"]
 
 [tool.ruff.format]
 quote-style = "double"
