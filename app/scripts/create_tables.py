@@ -1,7 +1,7 @@
 import asyncio
 
 from app.infra import dispose_engine, get_or_create_db_engine
-from app.models import Base
+from app.models.models import Base
 
 
 async def create_tables() -> None:

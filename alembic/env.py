@@ -9,7 +9,9 @@ from alembic import context
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import settings
-from app.models import Base
+from app.models.base import Base
+from app.models.models import *  # noqa: F403
+from app.models.outbox import *  # noqa: F403
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

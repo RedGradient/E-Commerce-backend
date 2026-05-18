@@ -4,9 +4,9 @@ from enum import Enum
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, text
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-Base = declarative_base()
+from app.models.base import Base
 
 
 class OrderStatus(Enum):

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Order, OrderItem, Product
+from app.models.models import Order, OrderItem, Product
 from app.schemas.orders import (
     CancelOrderRequest,
     CancelOrderResponse,

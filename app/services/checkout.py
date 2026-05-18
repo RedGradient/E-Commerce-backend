@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import messaging
 from app.cache import (
     get_idempotency_result,
     release_idempotency_key,
@@ -10,7 +9,8 @@ from app.cache import (
     try_reserve_idempotency_key,
 )
 from app.integrations.stripe_client import StripeClient, StripePaymentError
-from app.models import Order, OrderStatus
+from app.models.models import Order, OrderStatus
+from app.models.outbox import Outbox
 
 
 class OrderNotPayable(Exception):
@@ -81,13 +81,13 @@ class CheckoutService:
             await release_idempotency_key(idempotency_key)
             raise PaymentFailed() from err
 
+        # async with session.begin():
         # Set order's payment-related fields
         order.status = OrderStatus.Paid
         order.payment_intent_id = payment_intent.id
         paid_at = datetime.now(UTC)
         order.paid_at = paid_at
         session.add(order)
-        await session.commit()
 
         # Prepare and save payment result
         payload = {
@@ -98,11 +98,18 @@ class CheckoutService:
             "currency": "usd",
             "paid_at": paid_at.isoformat(),
         }
+
+        # Create outbox message
+        outbox_message = Outbox(
+            event_type="order.paid", order_id=order.id, payload=payload
+        )
+        session.add(outbox_message)
+
+        await session.commit()
+
         await save_idempotency_result(
             idempotency_key,
             payload,
         )
-
-        await messaging.publish_order_paid(payload)
 
         return payload

@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import messaging
-from app.models import Order, OrderStatus
+from app.models.models import Order, OrderStatus
+from app.models.outbox import Outbox
 from app.services.checkout import OrderNotFound
 
 
@@ -47,5 +47,13 @@ class CancellationService:
             "cancelled_at": order.cancelled_at.isoformat(),
             "cancel_reason": order.cancel_reason,
         }
-        await messaging.publish_order_cancelled(payload)
+
+        # Create outbox message
+        outbox_message = Outbox(
+            event_type="order.cancelled", order_id=order.id, payload=payload
+        )
+        session.add(outbox_message)
+
+        await session.commit()
+
         return payload
