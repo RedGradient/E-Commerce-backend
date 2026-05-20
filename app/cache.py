@@ -27,7 +27,7 @@ async def dispose_redis():
 IDEMPOTENCY_PREFIX = "idempotency:checkout:"
 
 
-async def try_reserve_idempotency_key(
+async def reserve_idempotency(
     key: str, ttl_seconds: int = settings.default_idempotency_ttl_seconds
 ) -> bool:
     redis = get_or_create_redis_client()
