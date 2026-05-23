@@ -47,7 +47,6 @@ class CheckoutResponse(BaseModel):
     status: OrderStatus
     amount: Money
     currency: str
-    paid_at: datetime | None = None
 
 
 class CancelOrderRequest(BaseModel):
