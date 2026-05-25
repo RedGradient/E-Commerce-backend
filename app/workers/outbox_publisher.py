@@ -7,8 +7,10 @@ from sqlalchemy import select
 from app.messaging import (
     ORDER_CANCELLED_ROUTING_KEY,
     ORDER_PAID_ROUTING_KEY,
+    ORDER_REFUNDED_ROUTING_KEY,
     publish_order_cancelled,
     publish_order_paid,
+    publish_order_refunded,
 )
 from app.models.models import Order  # noqa: F401
 from app.models.outbox import Outbox
@@ -25,6 +27,8 @@ async def publish_by_event(event_type: str, payload: dict) -> bool:
         await publish_order_paid(payload)
     elif event_type == ORDER_CANCELLED_ROUTING_KEY:
         await publish_order_cancelled(payload)
+    elif event_type == ORDER_REFUNDED_ROUTING_KEY:
+        await publish_order_refunded(payload)
     else:
         return False
     return True

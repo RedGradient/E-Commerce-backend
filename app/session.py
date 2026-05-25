@@ -16,6 +16,11 @@ def get_sessionmaker():
     return _sessionmaker
 
 
+def reset_sessionmaker() -> None:
+    global _sessionmaker
+    _sessionmaker = None
+
+
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with get_sessionmaker()() as session:
         try:

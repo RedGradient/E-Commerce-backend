@@ -10,10 +10,11 @@ from app.models.base import Base
 
 
 class OrderStatus(Enum):
-    Created = "created"
-    Processing = "processing"
-    Paid = "paid"
-    Cancelled = "cancelled"
+    Created = "Created"
+    Processing = "Processing"
+    Paid = "Paid"
+    Cancelled = "Cancelled"
+    Refunded = "Refunded"
 
 
 class Order(Base):
@@ -35,6 +36,11 @@ class Order(Base):
     )
 
     cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    refunded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

@@ -11,9 +11,11 @@ from app.schemas.orders import (
     OrderItemCreate,
     OrderItemRead,
     OrderRead,
+    RefundResponse,
 )
 from app.services.cancellation import CancellationService
 from app.services.checkout import CheckoutService
+from app.services.refund import RefundService
 from app.session import get_db_session
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -146,3 +148,12 @@ async def cancel_order(
 ):
     service = CancellationService()
     return await service.cancel(order_id, session, payload.reason)
+
+
+@router.post("/{order_id}/refund", response_model=RefundResponse, status_code=200)
+async def order_refund(
+    order_id: int,
+    session: AsyncSession = Depends(get_db_session),
+):
+    service = RefundService()
+    return await service.refund(order_id, session)

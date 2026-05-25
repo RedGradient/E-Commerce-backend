@@ -11,6 +11,11 @@ from app.services.checkout import (
     OrderNotPayable,
     PaymentFailed,
 )
+from app.services.refund import (
+    OrderAlreadyRefunded,
+    OrderNotRefundable,
+    RefundFailed,
+)
 
 
 def register_exception_handlers(app: FastAPI):
@@ -59,4 +64,31 @@ def register_exception_handlers(app: FastAPI):
         return JSONResponse(
             status_code=409,
             content={"detail": "order is already cancelled"},
+        )
+
+    @app.exception_handler(OrderNotRefundable)
+    async def order_not_refundable_handler(
+        request: Request, exc: OrderNotRefundable
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "order cannot be refunded in current status"},
+        )
+
+    @app.exception_handler(OrderAlreadyRefunded)
+    async def order_already_refunded_handler(
+        request: Request, exc: OrderAlreadyRefunded
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "order is already refunded"},
+        )
+
+    @app.exception_handler(RefundFailed)
+    async def refund_failed_handler(
+        request: Request, exc: RefundFailed
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={"detail": "payment provider refund failed"},
         )

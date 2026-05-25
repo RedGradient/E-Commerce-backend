@@ -37,6 +37,7 @@ class OrderRead(BaseModel):
     total_price: Money
     status: OrderStatus
     paid_at: datetime | None = None
+    refunded_at: datetime | None = None
     items: list[OrderItemRead]
 
 
@@ -60,3 +61,10 @@ class CancelOrderResponse(BaseModel):
     status: OrderStatus
     cancelled_at: datetime
     cancel_reason: str | None = None
+
+
+class RefundResponse(BaseModel):
+    order_id: int
+    status: OrderStatus
+    stripe_refund_id: str
+    message: str

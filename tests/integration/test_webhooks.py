@@ -53,3 +53,42 @@ async def test_stripe_webhook_success(
     outbox_messages = (await db_session.execute(select(Outbox))).scalars().all()
     assert len(outbox_messages) == 1
     assert outbox_messages[0].order_id == order.id
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_stripe_webhook_refund_created(
+    order_factory: Callable[..., Awaitable[Order]],
+    db_session: AsyncSession,
+    webhook_client: AsyncClient,
+) -> None:
+    fake_event = MagicMock()
+    fake_event.type = "refund.created"
+    fake_event.created = 1779279900
+    refund = MagicMock()
+    refund.payment_intent = "payment-intent-id"
+    fake_event.data.object = refund
+
+    order = await order_factory(
+        status=OrderStatus.Paid,
+        payment_intent_id="payment-intent-id",
+    )
+
+    with patch("app.routers.webhooks.Webhook.construct_event", return_value=fake_event):
+        response = await webhook_client.post(
+            "/webhooks/stripe",
+            content=b"{}",
+            headers={"Stripe-Signature": "t=1,v1=test"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"result": "OK"}
+
+    await db_session.refresh(order)
+    assert order.status == OrderStatus.Refunded
+    assert order.refunded_at == datetime.fromtimestamp(fake_event.created, tz=UTC)
+
+    outbox_messages = (await db_session.execute(select(Outbox))).scalars().all()
+    assert len(outbox_messages) == 1
+    assert outbox_messages[0].event_type == "order.refunded"
+    assert outbox_messages[0].payload["refunded_at"] == order.refunded_at.isoformat()
