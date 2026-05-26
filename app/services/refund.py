@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -5,8 +6,11 @@ import stripe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
 from app.services.checkout import OrderNotFound
+
+logger = logging.getLogger(__name__)
 
 
 class OrderNotRefundable(Exception):
@@ -31,27 +35,44 @@ class RefundService:
         )
 
     async def refund(self, order_id: int, session: AsyncSession) -> dict:
-        order = await session.get(Order, order_id)
-        order = verify_order_can_be_refunded(order)
-        payment_intent_id = order.payment_intent_id
+        with log_context(order_id=order_id):
+            order = await session.get(Order, order_id)
+            order = verify_order_can_be_refunded(order)
+            payment_intent_id = order.payment_intent_id
 
-        try:
-            refund = await self._stripe.v1.refunds.create_async(
-                params={
-                    "payment_intent": payment_intent_id,
-                    "reason": "requested_by_customer",
-                },  # type: ignore
-                options={"idempotency_key": f"refund-order-{order.id}"},
+            try:
+                refund = await self._stripe.v1.refunds.create_async(
+                    params={
+                        "payment_intent": payment_intent_id,
+                        "reason": "requested_by_customer",
+                    },  # type: ignore
+                    options={"idempotency_key": f"refund-order-{order.id}"},
+                )
+            except stripe.StripeError as err:
+                logger.error(
+                    "Stripe refund failed",
+                    extra=log_extra(
+                        event="refund.stripe_failed",
+                        payment_intent_id=payment_intent_id,
+                        error=str(err),
+                    ),
+                )
+                raise RefundFailed() from err
+
+            logger.info(
+                "Refund initiated",
+                extra=log_extra(
+                    event="refund.initiated",
+                    payment_intent_id=payment_intent_id,
+                    stripe_refund_id=refund.id,
+                ),
             )
-        except stripe.StripeError as err:
-            raise RefundFailed() from err
-
-        return {
-            "order_id": order.id,
-            "status": order.status,
-            "stripe_refund_id": refund.id,
-            "message": "refund initiated; order status updates via webhook",
-        }
+            return {
+                "order_id": order.id,
+                "status": order.status,
+                "stripe_refund_id": refund.id,
+                "message": "refund initiated; order status updates via webhook",
+            }
 
 
 def verify_order_can_be_refunded(order: Order | None) -> Order:

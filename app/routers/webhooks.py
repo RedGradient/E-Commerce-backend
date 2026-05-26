@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from stripe import Event, SignatureVerificationError, Webhook
 
 from app.config import settings
+from app.logging_context import log_extra, update_log_context
 from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
 from app.services.checkout import build_checkout_payload
@@ -30,13 +31,30 @@ async def webhook_stripe(
             secret=settings.webhook_secret_key,
         )
     except SignatureVerificationError:
+        logger.warning(
+            "Stripe webhook signature verification failed",
+            extra=log_extra(event="stripe.webhook.signature_invalid"),
+        )
         return Response(content="Ошибка проверки подписи.", status_code=400)
+
+    update_log_context(
+        stripe_event_id=event.id,
+        stripe_event_type=event.type,
+    )
+    logger.info(
+        "Stripe webhook received",
+        extra=log_extra(event="stripe.webhook.received"),
+    )
 
     if event.type == "payment_intent.succeeded":
         return await handle_payment_intent_succeeded(event, session)
     if event.type == "refund.created":
         return await handle_payment_refunded(event, session)
 
+    logger.debug(
+        "Stripe webhook ignored",
+        extra=log_extra(event="stripe.webhook.ignored"),
+    )
     return {"result": "OK"}
 
 
@@ -46,17 +64,35 @@ async def handle_payment_intent_succeeded(
 ) -> dict[str, str]:
     pi = event.data.object
     pi_id = pi.id
+    update_log_context(payment_intent_id=pi_id)
 
     order = await find_order_by_intent_id(session, pi_id)
 
-    # --- Validation ---
     if order is None:
+        logger.warning(
+            "No order for payment_intent.succeeded",
+            extra=log_extra(event="stripe.webhook.payment_succeeded.order_missing"),
+        )
         return {"result": "OK"}
+    update_log_context(order_id=order.id)
+
     if order.status == OrderStatus.Created:
+        logger.debug(
+            "Skipping payment_intent.succeeded for Created order",
+            extra=log_extra(
+                event="stripe.webhook.payment_succeeded.skipped",
+                order_status=order.status.value,
+            ),
+        )
         return {"result": "OK"}
     if order.status == OrderStatus.Paid:
-        if order.payment_intent_id == pi_id:
-            return {"result": "OK"}
+        logger.debug(
+            "Idempotent skip payment_intent.succeeded",
+            extra=log_extra(
+                event="stripe.webhook.payment_succeeded.idempotent",
+                order_status=order.status.value,
+            ),
+        )
         return {"result": "OK"}
 
     apply_order_paid(
@@ -67,6 +103,10 @@ async def handle_payment_intent_succeeded(
 
     await session.commit()
 
+    logger.info(
+        "Order marked Paid from webhook",
+        extra=log_extra(event="order.paid.webhook"),
+    )
     return {"result": "OK"}
 
 
@@ -77,15 +117,37 @@ async def handle_payment_refunded(
     refund = event.data.object
     pi_id = getattr(refund, "payment_intent", None)
     if not pi_id:
+        logger.warning(
+            "refund.created missing payment_intent",
+            extra=log_extra(event="stripe.webhook.refund.missing_payment_intent"),
+        )
         return {"result": "OK"}
 
+    update_log_context(payment_intent_id=pi_id)
     order = await find_order_by_intent_id(session, pi_id)
 
     if order is None:
+        logger.warning(
+            "No order for refund.created",
+            extra=log_extra(event="stripe.webhook.refund.order_missing"),
+        )
         return {"result": "OK"}
+    update_log_context(order_id=order.id)
+
     if order.status == OrderStatus.Refunded:
+        logger.debug(
+            "Idempotent skip refund.created",
+            extra=log_extra(event="stripe.webhook.refund.idempotent"),
+        )
         return {"result": "OK"}
     if order.status != OrderStatus.Paid:
+        logger.info(
+            "Skipping refund.created for non-Paid order",
+            extra=log_extra(
+                event="stripe.webhook.refund.skipped",
+                order_status=order.status.value,
+            ),
+        )
         return {"result": "OK"}
 
     refunded_at = datetime.fromtimestamp(event.created, tz=UTC)
@@ -102,6 +164,10 @@ async def handle_payment_refunded(
 
     await session.commit()
 
+    logger.info(
+        "Order marked Refunded from webhook",
+        extra=log_extra(event="order.refunded.webhook"),
+    )
     return {"result": "OK"}
 
 

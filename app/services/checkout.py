@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +14,10 @@ from app.integrations.stripe_client import (
     StripePaymentError,
     StripePaymentIntent,
 )
+from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
+
+logger = logging.getLogger(__name__)
 
 
 class OrderNotPayable(Exception):
@@ -49,35 +53,53 @@ class CheckoutService:
         idempotency_key: str,
         session: AsyncSession,
     ) -> dict:
-        # Return data if order already processed
-        if cached := await read_idempotency(idempotency_key):
-            return cached
-
-        order = await session.get(Order, order_id)
-        order = validate_order(order)
-
-        # Raise an error if idempotency key already exists in Redis
-        if not await reserve_idempotency(idempotency_key):
+        with log_context(order_id=order_id, idempotency_key=idempotency_key):
             if cached := await read_idempotency(idempotency_key):
+                logger.debug(
+                    "Checkout idempotency cache hit",
+                    extra=log_extra(event="checkout.idempotency_cache_hit"),
+                )
                 return cached
-            raise IdempotencyInProgress()
 
-        try:
-            payment_intent = await self._charge(order, idempotency_key)
+            order = await session.get(Order, order_id)
+            order = validate_order(order)
 
-            order.status = OrderStatus.Processing
-            order.payment_intent_id = payment_intent.id
-            await session.flush()
-        except StripePaymentError as err:
-            await release_idempotency_key(idempotency_key)
-            raise PaymentFailed() from err
+            if not await reserve_idempotency(idempotency_key):
+                if cached := await read_idempotency(idempotency_key):
+                    return cached
+                raise IdempotencyInProgress()
 
-        await session.commit()
+            try:
+                payment_intent = await self._charge(order, idempotency_key)
 
-        payload = build_checkout_payload(order)
-        await save_idempotency_result(idempotency_key, payload)
+                order.status = OrderStatus.Processing
+                order.payment_intent_id = payment_intent.id
+                await session.flush()
+            except StripePaymentError as err:
+                await release_idempotency_key(idempotency_key)
+                logger.warning(
+                    "Checkout payment failed",
+                    extra=log_extra(
+                        event="checkout.payment_failed",
+                        error=str(err),
+                    ),
+                )
+                raise PaymentFailed() from err
 
-        return payload
+            await session.commit()
+
+            payload = build_checkout_payload(order)
+            await save_idempotency_result(idempotency_key, payload)
+
+            logger.info(
+                "Checkout completed",
+                extra=log_extra(
+                    event="checkout.completed",
+                    payment_intent_id=order.payment_intent_id,
+                    order_status=order.status.value,
+                ),
+            )
+            return payload
 
     async def _charge(self, order: Order, idempotency_key: str) -> StripePaymentIntent:
         return await self._stripe.create_payment_intent(
@@ -103,14 +125,13 @@ def build_checkout_payload(order: Order) -> dict[str, Any]:
         "status": order.status.value,
         "amount": str(order.total_price),
         "currency": "usd",
-        # "paid_at": order.paid_at.isoformat() if order.paid_at else None,
     }
 
 
 async def read_idempotency(key: str) -> dict | None:
     res = await get_idempotency_result(key)
     if res is None:
-        return None  # ключа нет — продолжаем checkout
+        return None
     if res["status"] == "completed":
-        return res["payload"]  # готовый ответ
-    raise IdempotencyInProgress()  # processing — как в твоих блоках
+        return res["payload"]
+    raise IdempotencyInProgress()

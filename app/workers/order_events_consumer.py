@@ -5,6 +5,8 @@ from json import JSONDecodeError
 
 from aio_pika.abc import AbstractIncomingMessage
 
+from app.log_config import configure_logging
+from app.logging_context import log_context, log_extra
 from app.messaging import (
     ORDER_CANCELLED_ROUTING_KEY,
     ORDER_PAID_ROUTING_KEY,
@@ -13,48 +15,74 @@ from app.messaging import (
     get_or_create_rabbit_connection,
 )
 
-logging.basicConfig(level=logging.INFO)
-
-logger = logging.getLogger(__file__)
+configure_logging()
+logger = logging.getLogger(__name__)
 
 ORDER_EVENTS_QUEUE = "order.events.notifications"
 
 
 async def message_handler(message: AbstractIncomingMessage) -> None:
     async with message.process():
-        logger.info("Received routing key: %s", message.routing_key)
-
         try:
-            msg = json.loads(message.body)
+            payload = json.loads(message.body)
         except JSONDecodeError:
-            logger.error("Can not decode the message. Abort handling message")
+            logger.error(
+                "Failed to decode RabbitMQ message",
+                extra=log_extra(
+                    event="consumer.message.decode_failed",
+                    routing_key=message.routing_key,
+                ),
+            )
             return
 
-        if message.routing_key == ORDER_PAID_ROUTING_KEY:
-            handle_order_paid(msg)
-        elif message.routing_key == ORDER_CANCELLED_ROUTING_KEY:
-            handle_order_cancelled(msg)
-        elif message.routing_key == ORDER_REFUNDED_ROUTING_KEY:
-            handle_order_refunded(msg)
-        else:
-            logger.warning(
-                f"Message with unhandled routing_key '{message.routing_key}': {msg}"
+        with log_context(
+            routing_key=message.routing_key,
+            order_id=payload.get("order_id"),
+        ):
+            logger.info(
+                "RabbitMQ message received",
+                extra=log_extra(event="consumer.message.received"),
             )
+
+            if message.routing_key == ORDER_PAID_ROUTING_KEY:
+                handle_order_paid(payload)
+            elif message.routing_key == ORDER_CANCELLED_ROUTING_KEY:
+                handle_order_cancelled(payload)
+            elif message.routing_key == ORDER_REFUNDED_ROUTING_KEY:
+                handle_order_refunded(payload)
+            else:
+                logger.warning(
+                    "Unhandled RabbitMQ routing key",
+                    extra=log_extra(event="consumer.message.unhandled"),
+                )
 
 
 def handle_order_paid(msg: dict) -> None:
-    logger.info(f"Handling order.paid message: {msg}")
+    logger.info(
+        "Processed order.paid event",
+        extra=log_extra(event="consumer.order.paid"),
+    )
 
 
 def handle_order_cancelled(msg: dict) -> None:
-    logger.info(f"Handling order.cancelled message: {msg}")
+    logger.info(
+        "Processed order.cancelled event",
+        extra=log_extra(event="consumer.order.cancelled"),
+    )
 
 
 def handle_order_refunded(msg: dict) -> None:
-    logger.info(f"Handling order.refunded message: {msg}")
+    logger.info(
+        "Processed order.refunded event",
+        extra=log_extra(event="consumer.order.refunded"),
+    )
 
 
 async def main() -> None:
+    logger.info(
+        "Order events consumer started",
+        extra=log_extra(event="worker.consumer.started"),
+    )
     connection = await get_or_create_rabbit_connection()
 
     async with connection.channel() as channel:

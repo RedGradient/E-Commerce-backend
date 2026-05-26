@@ -1,10 +1,14 @@
+import logging
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
 from app.services.checkout import OrderNotFound
+
+logger = logging.getLogger(__name__)
 
 
 class OrderAlreadyCancelled(Exception):
@@ -24,23 +28,28 @@ class CancellationService:
         session: AsyncSession,
         reason: str | None = None,
     ) -> dict:
-        order = await session.get(Order, order_id)
-        verify_order_can_be_cancelled(order)
+        with log_context(order_id=order_id, cancel_reason=reason):
+            order = await session.get(Order, order_id)
+            verify_order_can_be_cancelled(order)
 
-        apply_cancellation(order, reason)
+            apply_cancellation(order, reason)
 
-        payload = build_cancel_payload(order, cancelled_at=datetime.now(UTC))
-        session.add(
-            Outbox(
-                event_type="order.cancelled",
-                order_id=order.id,  # type: ignore
-                payload=payload,
+            payload = build_cancel_payload(order, cancelled_at=datetime.now(UTC))
+            session.add(
+                Outbox(
+                    event_type="order.cancelled",
+                    order_id=order.id,  # type: ignore
+                    payload=payload,
+                )
             )
-        )
 
-        await session.commit()
+            await session.commit()
 
-        return payload
+            logger.info(
+                "Order cancelled",
+                extra=log_extra(event="order.cancelled"),
+            )
+            return payload
 
 
 def apply_cancellation(order: Order, reason: str | None) -> None:

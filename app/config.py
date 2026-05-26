@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     app_name: str = "commerce-orchestrator"
     app_env: str = "dev"
+    log_level: str = "INFO"
+    log_format: str = "auto"  # auto | json | text
     app_host: str = "0.0.0.0"
     app_port: int = 8000
 
@@ -33,6 +35,15 @@ class Settings(BaseSettings):
     webhook_secret_key: str = "replace-with-secret"
 
     default_idempotency_ttl_seconds: int = 24 * 60 * 60
+
+    @property
+    def use_json_logs(self) -> bool:
+        fmt = self.log_format.lower()
+        if fmt == "json":
+            return True
+        if fmt == "text":
+            return False
+        return self.app_env.lower() in ("production", "prod", "staging")
 
     @property
     def postgres_dsn(self) -> str:
