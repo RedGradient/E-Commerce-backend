@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.domain.order_state_machine import InvalidOrderTransition
 from app.logging_context import log_extra
 from app.services.cancellation import (
     OrderAlreadyCancelled,
@@ -33,6 +34,30 @@ def register_exception_handlers(app: FastAPI):
             extra=log_extra(event="api.order.not_found", http_status=404),
         )
         return JSONResponse(status_code=404, content={"detail": "order not found"})
+
+    @app.exception_handler(InvalidOrderTransition)
+    async def invalid_order_transition_handler(
+        request: Request, exc: InvalidOrderTransition
+    ) -> JSONResponse:
+        logger.warning(
+            "Invalid order state transition",
+            extra=log_extra(
+                event="api.order.invalid_transition",
+                http_status=409,
+                order_status=exc.current.value,
+                transition_event=exc.event.value,
+            ),
+            exc_info=exc,
+        )
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": (
+                    f"order cannot apply {exc.event.value} "
+                    f"in status {exc.current.value}"
+                ),
+            },
+        )
 
     @app.exception_handler(OrderNotPayable)
     async def order_not_payable_handler(

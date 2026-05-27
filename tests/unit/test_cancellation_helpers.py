@@ -2,11 +2,11 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.domain.order_state_machine import apply_cancellation
 from app.models.models import Order, OrderStatus
 from app.services.cancellation import (
     OrderAlreadyCancelled,
     OrderNotCancellable,
-    apply_cancellation,
     build_cancel_payload,
     verify_order_can_be_cancelled,
 )
@@ -37,7 +37,7 @@ def test_verify_order_can_be_cancelled_ok_for_created() -> None:
 
 def test_apply_cancellation_sets_fields() -> None:
     order = Order(id=42, status=OrderStatus.Created)
-    apply_cancellation(order, "customer changed mind")
+    apply_cancellation(order, reason="customer changed mind")
 
     assert order.status == OrderStatus.Cancelled
     assert order.cancel_reason == "customer changed mind"

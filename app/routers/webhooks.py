@@ -7,11 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from stripe import Event, SignatureVerificationError, Webhook
 
 from app.config import settings
+from app.domain.order_state_machine import (
+    TransitionOutcome,
+    apply_payment_succeeded,
+    apply_refund,
+)
 from app.logging_context import log_extra, update_log_context
-from app.models.models import Order, OrderStatus
+from app.models.models import Order
 from app.models.outbox import Outbox
 from app.services.checkout import build_checkout_payload
-from app.services.refund import apply_order_refunded, build_refund_payload
+from app.services.refund import build_refund_payload
 from app.session import get_db_session
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -76,31 +81,34 @@ async def handle_payment_intent_succeeded(
         return {"result": "OK"}
     update_log_context(order_id=order.id)
 
-    if order.status == OrderStatus.Created:
+    paid_at = datetime.fromtimestamp(event.created, tz=UTC)
+    result = apply_payment_succeeded(
+        order,
+        payment_intent_id=pi_id,
+        paid_at=paid_at,
+    )
+
+    if result.outcome is TransitionOutcome.REJECTED:
         logger.debug(
-            "Skipping payment_intent.succeeded for Created order",
+            "Skipping payment_intent.succeeded for order state",
             extra=log_extra(
                 event="stripe.webhook.payment_succeeded.skipped",
-                order_status=order.status.value,
+                order_status=result.from_status.value,
             ),
         )
         return {"result": "OK"}
-    if order.status == OrderStatus.Paid:
+
+    if result.outcome is TransitionOutcome.NOOP:
         logger.debug(
             "Idempotent skip payment_intent.succeeded",
             extra=log_extra(
                 event="stripe.webhook.payment_succeeded.idempotent",
-                order_status=order.status.value,
+                order_status=result.from_status.value,
             ),
         )
         return {"result": "OK"}
 
-    apply_order_paid(
-        order, pi_id, paid_at=datetime.fromtimestamp(event.created, tz=UTC)
-    )
-
     session.add(outbox_checkout_message(order))
-
     await session.commit()
 
     logger.info(
@@ -134,24 +142,25 @@ async def handle_payment_refunded(
         return {"result": "OK"}
     update_log_context(order_id=order.id)
 
-    if order.status == OrderStatus.Refunded:
+    refunded_at = datetime.fromtimestamp(event.created, tz=UTC)
+    result = apply_refund(order, refunded_at=refunded_at)
+
+    if result.outcome is TransitionOutcome.REJECTED:
+        logger.info(
+            "Skipping refund.created for order state",
+            extra=log_extra(
+                event="stripe.webhook.refund.skipped",
+                order_status=result.from_status.value,
+            ),
+        )
+        return {"result": "OK"}
+
+    if result.outcome is TransitionOutcome.NOOP:
         logger.debug(
             "Idempotent skip refund.created",
             extra=log_extra(event="stripe.webhook.refund.idempotent"),
         )
         return {"result": "OK"}
-    if order.status != OrderStatus.Paid:
-        logger.info(
-            "Skipping refund.created for non-Paid order",
-            extra=log_extra(
-                event="stripe.webhook.refund.skipped",
-                order_status=order.status.value,
-            ),
-        )
-        return {"result": "OK"}
-
-    refunded_at = datetime.fromtimestamp(event.created, tz=UTC)
-    apply_order_refunded(order, refunded_at)
 
     session.add(
         Outbox(
@@ -184,9 +193,3 @@ async def find_order_by_intent_id(session: AsyncSession, pi_id: str) -> Order | 
     stmt = select(Order).where(Order.payment_intent_id == pi_id)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
-
-
-def apply_order_paid(order: Order, payment_intent_id: str, paid_at: datetime) -> None:
-    order.status = OrderStatus.Paid
-    order.payment_intent_id = payment_intent_id
-    order.paid_at = paid_at

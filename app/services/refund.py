@@ -6,6 +6,7 @@ import stripe
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.domain.order_state_machine import is_refund_allowed
 from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
 from app.services.checkout import OrderNotFound
@@ -82,18 +83,13 @@ def verify_order_can_be_refunded(order: Order | None) -> Order:
     if order.status == OrderStatus.Refunded:
         raise OrderAlreadyRefunded()
 
-    if order.status != OrderStatus.Paid:
+    if not is_refund_allowed(order.status):
         raise OrderNotRefundable()
 
     if not order.payment_intent_id:
         raise OrderNotRefundable()
 
     return order
-
-
-def apply_order_refunded(order: Order, refunded_at: datetime) -> None:
-    order.status = OrderStatus.Refunded
-    order.refunded_at = refunded_at
 
 
 def build_refund_payload(order: Order, refunded_at: datetime) -> dict[str, Any]:

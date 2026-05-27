@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.order_state_machine import apply_cancellation, is_cancellation_allowed
 from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
@@ -32,9 +33,10 @@ class CancellationService:
             order = await session.get(Order, order_id)
             verify_order_can_be_cancelled(order)
 
-            apply_cancellation(order, reason)
+            cancelled_at = datetime.now(UTC)
+            apply_cancellation(order, reason=reason, cancelled_at=cancelled_at)
 
-            payload = build_cancel_payload(order, cancelled_at=datetime.now(UTC))
+            payload = build_cancel_payload(order, cancelled_at=cancelled_at)
             session.add(
                 Outbox(
                     event_type="order.cancelled",
@@ -52,12 +54,6 @@ class CancellationService:
             return payload
 
 
-def apply_cancellation(order: Order, reason: str | None) -> None:
-    order.status = OrderStatus.Cancelled
-    order.cancelled_at = datetime.now(UTC)
-    order.cancel_reason = reason
-
-
 def verify_order_can_be_cancelled(order: Order) -> None:
     if order is None:
         raise OrderNotFound()
@@ -65,7 +61,7 @@ def verify_order_can_be_cancelled(order: Order) -> None:
     if order.status == OrderStatus.Cancelled:
         raise OrderAlreadyCancelled()
 
-    if order.status != OrderStatus.Created:
+    if not is_cancellation_allowed(order.status):
         raise OrderNotCancellable()
 
 

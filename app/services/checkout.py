@@ -9,13 +9,14 @@ from app.cache import (
     reserve_idempotency,
     save_idempotency_result,
 )
+from app.domain.order_state_machine import apply_start_payment, is_checkout_allowed
 from app.integrations.stripe_client import (
     StripeClient,
     StripePaymentError,
     StripePaymentIntent,
 )
 from app.logging_context import log_context, log_extra
-from app.models.models import Order, OrderStatus
+from app.models.models import Order
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,7 @@ class CheckoutService:
 
             try:
                 payment_intent = await self._charge(order, idempotency_key)
-
-                order.status = OrderStatus.Processing
-                order.payment_intent_id = payment_intent.id
+                apply_start_payment(order, payment_intent_id=payment_intent.id)
                 await session.flush()
             except StripePaymentError as err:
                 await release_idempotency_key(idempotency_key)
@@ -113,7 +112,7 @@ class CheckoutService:
 def validate_order(order: Order | None) -> Order:
     if order is None:
         raise OrderNotFound()
-    if order.status not in {OrderStatus.Created, OrderStatus.Processing}:
+    if not is_checkout_allowed(order.status):
         raise OrderNotPayable()
     return order
 

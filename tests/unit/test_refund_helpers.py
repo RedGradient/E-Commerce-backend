@@ -3,12 +3,12 @@ from decimal import Decimal
 
 import pytest
 
+from app.domain.order_state_machine import apply_refund
 from app.models.models import Order, OrderItem, OrderStatus
 from app.services.checkout import OrderNotFound
 from app.services.refund import (
     OrderAlreadyRefunded,
     OrderNotRefundable,
-    apply_order_refunded,
     build_refund_payload,
     verify_order_can_be_refunded,
 )
@@ -50,7 +50,7 @@ def test_apply_order_refunded_sets_fields() -> None:
     order = Order(id=42, status=OrderStatus.Paid, payment_intent_id="pi_abc")
     at = datetime(2026, 5, 18, 12, 0, 0, tzinfo=UTC)
 
-    apply_order_refunded(order, at)
+    apply_refund(order, refunded_at=at)
 
     assert order.status == OrderStatus.Refunded
     assert order.refunded_at == at
