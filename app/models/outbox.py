@@ -18,18 +18,18 @@ class Outbox(Base):
             "id",
             postgresql_where=text("published_at IS NULL AND failed_at IS NULL"),
         ),
-        # Дедуп: не больше одной «ожидающей» записи c одинаковыми order и event_type
+        # Дедуп: не должно быть записей с одним и тем же dedup_key
+        # Это нужно для того, чтобы предотвратить повторную отправку сообщения в очередь
         Index(
-            "uq_outbox_pending_order_event",
-            "order_id",
-            "event_type",
+            "uq_outbox_dedup_key",
+            "dedup_key",
             unique=True,
-            postgresql_where=text("published_at IS NULL AND failed_at IS NULL"),
         ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     event_type: Mapped[str] = mapped_column(String, nullable=False)
+    dedup_key: Mapped[str] = mapped_column(String, nullable=False)
     order_id: Mapped[int] = mapped_column(
         ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
     )

@@ -1,6 +1,7 @@
 import logging
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.order_state_machine import apply_cancellation, is_cancellation_allowed
@@ -10,6 +11,19 @@ from app.models.outbox import Outbox
 from app.services.checkout import OrderNotFound
 
 logger = logging.getLogger(__name__)
+
+
+def _is_outbox_dedup_hit(err: IntegrityError) -> bool:
+    return "uq_outbox_dedup_key" in str(err.orig)
+
+
+def outbox_cancel_message(order: Order, *, dedup_key: str, payload: dict) -> Outbox:
+    return Outbox(
+        event_type="order.cancelled",
+        dedup_key=dedup_key,
+        order_id=order.id,  # type: ignore[arg-type]
+        payload=payload,
+    )
 
 
 class OrderAlreadyCancelled(Exception):
@@ -37,15 +51,34 @@ class CancellationService:
             apply_cancellation(order, reason=reason, cancelled_at=cancelled_at)
 
             payload = build_cancel_payload(order, cancelled_at=cancelled_at)
-            session.add(
-                Outbox(
-                    event_type="order.cancelled",
-                    order_id=order.id,  # type: ignore
-                    payload=payload,
+            dedup_key = f"order.cancelled:{order.id}"
+            try:
+                session.add(
+                    outbox_cancel_message(order, dedup_key=dedup_key, payload=payload)
                 )
-            )
-
-            await session.commit()
+                await session.commit()
+            except IntegrityError as err:
+                await session.rollback()
+                if _is_outbox_dedup_hit(err):
+                    logger.info(
+                        "Outbox dedup hit for cancelled event",
+                        extra=log_extra(
+                            event="outbox.dedup_hit",
+                            dedup_key=dedup_key,
+                            dedup_scope="order.cancelled",
+                        ),
+                    )
+                    return payload
+                logger.exception(
+                    "Failed to persist outbox message for cancelled event",
+                    extra=log_extra(
+                        event="outbox.persist_failed",
+                        dedup_key=dedup_key,
+                        dedup_scope="order.cancelled",
+                        db_error=str(err.orig),
+                    ),
+                )
+                raise
 
             logger.info(
                 "Order cancelled",

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, Request, Response
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from stripe import Event, SignatureVerificationError, Webhook
 
@@ -21,6 +22,35 @@ from app.session import get_db_session
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 logger = logging.getLogger(__name__)
+
+
+def _is_outbox_dedup_hit(err: IntegrityError) -> bool:
+    return "uq_outbox_dedup_key" in str(err.orig)
+
+
+def outbox_checkout_message(order: Order, dedup_key: str) -> Outbox:
+    return Outbox(
+        event_type="order.paid",
+        dedup_key=dedup_key,
+        order_id=order.id,
+        payload=build_checkout_payload(order),
+        created_at=datetime.now(UTC),
+    )
+
+
+def outbox_refund_message(
+    order: Order,
+    *,
+    refunded_at: datetime,
+    dedup_key: str,
+) -> Outbox:
+    return Outbox(
+        event_type="order.refunded",
+        dedup_key=dedup_key,
+        order_id=order.id,
+        payload=build_refund_payload(order, refunded_at=refunded_at),
+        created_at=datetime.now(UTC),
+    )
 
 
 @router.post("/stripe", status_code=200)
@@ -108,8 +138,32 @@ async def handle_payment_intent_succeeded(
         )
         return {"result": "OK"}
 
-    session.add(outbox_checkout_message(order))
-    await session.commit()
+    dedup_key = f"stripe:{event.id}"
+    try:
+        session.add(outbox_checkout_message(order, dedup_key))
+        await session.commit()
+    except IntegrityError as err:
+        await session.rollback()
+        if _is_outbox_dedup_hit(err):
+            logger.info(
+                "Outbox dedup hit for paid event",
+                extra=log_extra(
+                    event="outbox.dedup_hit",
+                    dedup_key=dedup_key,
+                    dedup_scope="order.paid",
+                ),
+            )
+            return {"result": "OK"}
+        logger.exception(
+            "Failed to persist outbox message for paid event",
+            extra=log_extra(
+                event="outbox.persist_failed",
+                dedup_key=dedup_key,
+                dedup_scope="order.paid",
+                db_error=str(err.orig),
+            ),
+        )
+        raise
 
     logger.info(
         "Order marked Paid from webhook",
@@ -162,31 +216,44 @@ async def handle_payment_refunded(
         )
         return {"result": "OK"}
 
-    session.add(
-        Outbox(
-            event_type="order.refunded",
-            order_id=order.id,
-            payload=build_refund_payload(order, refunded_at=refunded_at),
-            created_at=datetime.now(UTC),
+    dedup_key = f"stripe:{event.id}"
+    try:
+        session.add(
+            outbox_refund_message(
+                order,
+                refunded_at=refunded_at,
+                dedup_key=dedup_key,
+            )
         )
-    )
-
-    await session.commit()
+        await session.commit()
+    except IntegrityError as err:
+        await session.rollback()
+        if _is_outbox_dedup_hit(err):
+            logger.info(
+                "Outbox dedup hit for refunded event",
+                extra=log_extra(
+                    event="outbox.dedup_hit",
+                    dedup_key=dedup_key,
+                    dedup_scope="order.refunded",
+                ),
+            )
+            return {"result": "OK"}
+        logger.exception(
+            "Failed to persist outbox message for refunded event",
+            extra=log_extra(
+                event="outbox.persist_failed",
+                dedup_key=dedup_key,
+                dedup_scope="order.refunded",
+                db_error=str(err.orig),
+            ),
+        )
+        raise
 
     logger.info(
         "Order marked Refunded from webhook",
         extra=log_extra(event="order.refunded.webhook"),
     )
     return {"result": "OK"}
-
-
-def outbox_checkout_message(order: Order) -> Outbox:
-    return Outbox(
-        event_type="order.paid",
-        order_id=order.id,
-        payload=build_checkout_payload(order),
-        created_at=datetime.now(UTC),
-    )
 
 
 async def find_order_by_intent_id(session: AsyncSession, pi_id: str) -> Order | None:
