@@ -78,6 +78,17 @@ services:
       timeout: 3s
       retries: 10
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: commerce_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: commerce_rabbitmq

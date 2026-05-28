@@ -16,6 +16,7 @@ from app.domain.order_state_machine import (
 from app.logging_context import log_extra, update_log_context
 from app.models.models import Order
 from app.models.outbox import Outbox
+from app.observability.metrics import record_webhook_event
 from app.services.checkout import build_checkout_payload
 from app.services.refund import build_refund_payload
 from app.session import get_db_session
@@ -66,6 +67,7 @@ async def webhook_stripe(
             secret=settings.webhook_secret_key,
         )
     except SignatureVerificationError:
+        record_webhook_event(event_type="stripe", outcome="signature_invalid")
         logger.warning(
             "Stripe webhook signature verification failed",
             extra=log_extra(event="stripe.webhook.signature_invalid"),
@@ -86,6 +88,7 @@ async def webhook_stripe(
     if event.type == "refund.created":
         return await handle_payment_refunded(event, session)
 
+    record_webhook_event(event_type=event.type, outcome="ignored")
     logger.debug(
         "Stripe webhook ignored",
         extra=log_extra(event="stripe.webhook.ignored"),
@@ -104,6 +107,10 @@ async def handle_payment_intent_succeeded(
     order = await find_order_by_intent_id(session, pi_id)
 
     if order is None:
+        record_webhook_event(
+            event_type="payment_intent.succeeded",
+            outcome="order_missing",
+        )
         logger.warning(
             "No order for payment_intent.succeeded",
             extra=log_extra(event="stripe.webhook.payment_succeeded.order_missing"),
@@ -119,6 +126,10 @@ async def handle_payment_intent_succeeded(
     )
 
     if result.outcome is TransitionOutcome.REJECTED:
+        record_webhook_event(
+            event_type="payment_intent.succeeded",
+            outcome="rejected",
+        )
         logger.debug(
             "Skipping payment_intent.succeeded for order state",
             extra=log_extra(
@@ -129,6 +140,10 @@ async def handle_payment_intent_succeeded(
         return {"result": "OK"}
 
     if result.outcome is TransitionOutcome.NOOP:
+        record_webhook_event(
+            event_type="payment_intent.succeeded",
+            outcome="noop",
+        )
         logger.debug(
             "Idempotent skip payment_intent.succeeded",
             extra=log_extra(
@@ -145,6 +160,10 @@ async def handle_payment_intent_succeeded(
     except IntegrityError as err:
         await session.rollback()
         if _is_outbox_dedup_hit(err):
+            record_webhook_event(
+                event_type="payment_intent.succeeded",
+                outcome="dedup",
+            )
             logger.info(
                 "Outbox dedup hit for paid event",
                 extra=log_extra(
@@ -165,6 +184,10 @@ async def handle_payment_intent_succeeded(
         )
         raise
 
+    record_webhook_event(
+        event_type="payment_intent.succeeded",
+        outcome="applied",
+    )
     logger.info(
         "Order marked Paid from webhook",
         extra=log_extra(event="order.paid.webhook"),
@@ -179,6 +202,7 @@ async def handle_payment_refunded(
     refund = event.data.object
     pi_id = getattr(refund, "payment_intent", None)
     if not pi_id:
+        record_webhook_event(event_type="refund.created", outcome="invalid_payload")
         logger.warning(
             "refund.created missing payment_intent",
             extra=log_extra(event="stripe.webhook.refund.missing_payment_intent"),
@@ -189,6 +213,7 @@ async def handle_payment_refunded(
     order = await find_order_by_intent_id(session, pi_id)
 
     if order is None:
+        record_webhook_event(event_type="refund.created", outcome="order_missing")
         logger.warning(
             "No order for refund.created",
             extra=log_extra(event="stripe.webhook.refund.order_missing"),
@@ -200,6 +225,7 @@ async def handle_payment_refunded(
     result = apply_refund(order, refunded_at=refunded_at)
 
     if result.outcome is TransitionOutcome.REJECTED:
+        record_webhook_event(event_type="refund.created", outcome="rejected")
         logger.info(
             "Skipping refund.created for order state",
             extra=log_extra(
@@ -210,6 +236,7 @@ async def handle_payment_refunded(
         return {"result": "OK"}
 
     if result.outcome is TransitionOutcome.NOOP:
+        record_webhook_event(event_type="refund.created", outcome="noop")
         logger.debug(
             "Idempotent skip refund.created",
             extra=log_extra(event="stripe.webhook.refund.idempotent"),
@@ -229,6 +256,7 @@ async def handle_payment_refunded(
     except IntegrityError as err:
         await session.rollback()
         if _is_outbox_dedup_hit(err):
+            record_webhook_event(event_type="refund.created", outcome="dedup")
             logger.info(
                 "Outbox dedup hit for refunded event",
                 extra=log_extra(
@@ -249,6 +277,7 @@ async def handle_payment_refunded(
         )
         raise
 
+    record_webhook_event(event_type="refund.created", outcome="applied")
     logger.info(
         "Order marked Refunded from webhook",
         extra=log_extra(event="order.refunded.webhook"),

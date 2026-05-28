@@ -18,8 +18,9 @@ from app.integrations.stripe_client import StripeClient
 from app.log_config import configure_logging
 from app.logging_context import log_extra
 from app.messaging import dispose_rabbit, get_or_create_rabbit_connection
+from app.middleware.prometheus_middleware import PrometheusMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
-from app.routers import orders, products, webhooks
+from app.routers import metrics, orders, products, webhooks
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -78,6 +79,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(PrometheusMiddleware)
+app.include_router(metrics.router)
 app.include_router(orders.router)
 app.include_router(products.router)
 app.include_router(webhooks.router)

@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime
 
+import prometheus_client
 from sqlalchemy import select
 
 from app.log_config import configure_logging
@@ -16,6 +18,7 @@ from app.messaging import (
 )
 from app.models.models import Order  # noqa: F401
 from app.models.outbox import Outbox
+from app.observability.metrics import record_outbox_publish
 from app.session import get_sessionmaker
 
 configure_logging()
@@ -42,10 +45,13 @@ def mark_as_failed(msg: Outbox, error: str) -> None:
 
 
 async def main() -> None:
+    prometheus_client.start_http_server(9091)
+
     logger.info(
         "Outbox publisher started",
         extra=log_extra(event="worker.outbox.started"),
     )
+
     while True:
         async with get_sessionmaker()() as session:
             published_any = False
@@ -63,6 +69,7 @@ async def main() -> None:
                 messages = (await session.execute(stmt)).scalars().all()
 
                 for msg in messages:
+                    start = time.perf_counter()
                     with log_context(
                         outbox_id=msg.id,
                         order_id=msg.order_id,
@@ -79,6 +86,11 @@ async def main() -> None:
                                     ),
                                 )
                                 mark_as_failed(msg, error)
+                                record_outbox_publish(
+                                    event_type=msg.event_type,
+                                    result="skipped",
+                                    duration_seconds=time.perf_counter() - start,
+                                )
                                 continue
                         except Exception:
                             msg.attempts += 1
@@ -96,6 +108,11 @@ async def main() -> None:
                                     msg,
                                     f"failed after {MAX_ATTEMPTS} attempts",
                                 )
+                            record_outbox_publish(
+                                event_type=msg.event_type,
+                                result="failed",
+                                duration_seconds=time.perf_counter() - start,
+                            )
                             continue
 
                         msg.published_at = datetime.now(UTC)
@@ -104,6 +121,11 @@ async def main() -> None:
                             extra=log_extra(event="outbox.publish.success"),
                         )
                         published_any = True
+                        record_outbox_publish(
+                            event_type=msg.event_type,
+                            result="published",
+                            duration_seconds=time.perf_counter() - start,
+                        )
 
             if not published_any:
                 await asyncio.sleep(1)
