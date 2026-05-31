@@ -36,6 +36,14 @@ outbox_publish_duration_seconds = Histogram(
 )
 
 
+# Order cancellation (API / cancelator worker)
+order_cancellation_total = Counter(
+    "order_cancellation_total",
+    "Order cancellation attempts by source and outcome",
+    ["event_type", "outcome"],
+)
+
+
 def record_http_request(
     *,
     method: str,
@@ -65,3 +73,11 @@ def record_outbox_publish(
         outbox_publish_duration_seconds.labels(event_type=event_type).observe(
             duration_seconds
         )
+
+
+def record_order_cancellation(
+    *,
+    event_type: str,
+    outcome: str,
+) -> None:
+    order_cancellation_total.labels(event_type=event_type, outcome=outcome).inc()

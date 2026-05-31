@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
@@ -36,6 +37,12 @@ class OrderNotCancellable(Exception):
         super().__init__(*args)
 
 
+@dataclass(frozen=True, slots=True)
+class CancelInSessionResult:
+    payload: dict
+    dedup_key: str
+
+
 class CancellationService:
     async def cancel(
         self,
@@ -43,19 +50,9 @@ class CancellationService:
         session: AsyncSession,
         reason: str | None = None,
     ) -> dict:
+        result = await self.cancel_in_session(order_id, session, reason)
         with log_context(order_id=order_id, cancel_reason=reason):
-            order = await session.get(Order, order_id)
-            verify_order_can_be_cancelled(order)
-
-            cancelled_at = datetime.now(UTC)
-            apply_cancellation(order, reason=reason, cancelled_at=cancelled_at)
-
-            payload = build_cancel_payload(order, cancelled_at=cancelled_at)
-            dedup_key = f"order.cancelled:{order.id}"
             try:
-                session.add(
-                    outbox_cancel_message(order, dedup_key=dedup_key, payload=payload)
-                )
                 await session.commit()
             except IntegrityError as err:
                 await session.rollback()
@@ -64,16 +61,16 @@ class CancellationService:
                         "Outbox dedup hit for cancelled event",
                         extra=log_extra(
                             event="outbox.dedup_hit",
-                            dedup_key=dedup_key,
+                            dedup_key=result.dedup_key,
                             dedup_scope="order.cancelled",
                         ),
                     )
-                    return payload
+                    return result.payload
                 logger.exception(
                     "Failed to persist outbox message for cancelled event",
                     extra=log_extra(
                         event="outbox.persist_failed",
-                        dedup_key=dedup_key,
+                        dedup_key=result.dedup_key,
                         dedup_scope="order.cancelled",
                         db_error=str(err.orig),
                     ),
@@ -84,10 +81,28 @@ class CancellationService:
                 "Order cancelled",
                 extra=log_extra(event="order.cancelled"),
             )
-            return payload
+            return result.payload
+
+    async def cancel_in_session(
+        self,
+        order_id: int,
+        session: AsyncSession,
+        reason: str | None = None,
+    ) -> CancelInSessionResult:
+        order = await session.get(Order, order_id)
+        order = verify_order_can_be_cancelled(order)
+
+        cancelled_at = datetime.now(UTC)
+        apply_cancellation(order, reason=reason, cancelled_at=cancelled_at)
+
+        payload = build_cancel_payload(order, cancelled_at=cancelled_at)
+        dedup_key = f"order.cancelled:{order.id}"
+        session.add(outbox_cancel_message(order, dedup_key=dedup_key, payload=payload))
+
+        return CancelInSessionResult(payload=payload, dedup_key=dedup_key)
 
 
-def verify_order_can_be_cancelled(order: Order) -> None:
+def verify_order_can_be_cancelled(order: Order) -> Order:
     if order is None:
         raise OrderNotFound()
 
@@ -96,6 +111,8 @@ def verify_order_can_be_cancelled(order: Order) -> None:
 
     if not is_cancellation_allowed(order.status):
         raise OrderNotCancellable()
+
+    return order
 
 
 def build_cancel_payload(order: Order, cancelled_at: datetime) -> dict:
