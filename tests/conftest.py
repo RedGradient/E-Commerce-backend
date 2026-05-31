@@ -7,6 +7,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from alembic import command
+from alembic.config import Config
 from app.infra import dispose_engine
 from app.models.models import Order, OrderStatus
 from app.routers import webhooks
@@ -17,6 +19,12 @@ os.environ["ENV_FILE"] = ".env.test"
 TABLES = ("outbox", "order_items", "orders", "products")
 
 
+@pytest.fixture(scope="session")
+def apply_migrations() -> None:
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
+
 async def _reset_db_pool() -> None:
     """Drop engine pool so the next test binds asyncpg to its own event loop."""
     await dispose_engine()
@@ -24,7 +32,7 @@ async def _reset_db_pool() -> None:
 
 
 @pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
+async def db_session(apply_migrations) -> AsyncGenerator[AsyncSession, None]:
     await _reset_db_pool()
     async with get_sessionmaker()() as session:
         try:
@@ -50,6 +58,8 @@ async def order_factory(
             paid_at=kwargs.get("paid_at"),
             refunded_at=kwargs.get("refunded_at"),
         )
+        if "created_at" in kwargs:
+            order.created_at = kwargs["created_at"]
 
         db_session.add(order)
         await db_session.commit()
