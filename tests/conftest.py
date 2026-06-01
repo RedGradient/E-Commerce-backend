@@ -2,13 +2,13 @@ import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 
 import pytest
+from alembic.config import Config
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
-from alembic.config import Config
 from app.infra import dispose_engine
 from app.models.models import Order, OrderStatus
 from app.routers import webhooks
