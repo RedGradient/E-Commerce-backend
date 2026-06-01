@@ -10,7 +10,7 @@ from app.services.cancellation import (
     build_cancel_payload,
     verify_order_can_be_cancelled,
 )
-from app.services.checkout import OrderNotFound
+from app.services.orders import OrderNotFound
 
 
 def test_verify_order_can_be_cancelled_raises_when_missing() -> None:

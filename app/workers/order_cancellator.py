@@ -14,7 +14,7 @@ from app.services.cancellation import (
     OrderAlreadyCancelled,
     OrderNotCancellable,
 )
-from app.services.checkout import OrderNotFound
+from app.services.orders import OrderNotFound
 from app.session import get_sessionmaker
 
 configure_logging()

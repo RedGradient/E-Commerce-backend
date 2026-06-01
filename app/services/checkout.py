@@ -17,16 +17,12 @@ from app.integrations.stripe_client import (
 )
 from app.logging_context import log_context, log_extra
 from app.models.models import Order
+from app.services.orders import OrderNotFound
 
 logger = logging.getLogger(__name__)
 
 
 class OrderNotPayable(Exception):
-    def __init__(self, *args: object) -> None:
-        super().__init__(*args)
-
-
-class OrderNotFound(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 

@@ -9,7 +9,7 @@ from app.domain.order_state_machine import apply_cancellation, is_cancellation_a
 from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
-from app.services.checkout import OrderNotFound
+from app.services.orders import OrderNotFound
 
 logger = logging.getLogger(__name__)
 

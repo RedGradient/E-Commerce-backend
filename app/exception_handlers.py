@@ -11,9 +11,14 @@ from app.services.cancellation import (
 )
 from app.services.checkout import (
     IdempotencyInProgress,
-    OrderNotFound,
     OrderNotPayable,
     PaymentFailed,
+)
+from app.services.orders import (
+    OrderItemNotFound,
+    OrderNotFound,
+    ProductNotFound,
+    ProductsNotFound,
 )
 from app.services.refund import (
     OrderAlreadyRefunded,
@@ -34,6 +39,48 @@ def register_exception_handlers(app: FastAPI):
             extra=log_extra(event="api.order.not_found", http_status=404),
         )
         return JSONResponse(status_code=404, content={"detail": "order not found"})
+
+    @app.exception_handler(ProductNotFound)
+    async def product_not_found_handler(
+        request: Request, exc: ProductNotFound
+    ) -> JSONResponse:
+        logger.info(
+            "Product not found",
+            extra=log_extra(event="api.product.not_found", http_status=404),
+        )
+        return JSONResponse(status_code=404, content={"detail": "product not found"})
+
+    @app.exception_handler(ProductsNotFound)
+    async def products_not_found_handler(
+        request: Request, exc: ProductsNotFound
+    ) -> JSONResponse:
+        logger.info(
+            "Products not found",
+            extra=log_extra(
+                event="api.product.not_found",
+                http_status=404,
+                product_ids=sorted(exc.product_ids),
+            ),
+        )
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": f"missing product ids: {sorted(exc.product_ids)}",
+            },
+        )
+
+    @app.exception_handler(OrderItemNotFound)
+    async def order_item_not_found_handler(
+        request: Request, exc: OrderItemNotFound
+    ) -> JSONResponse:
+        logger.info(
+            "Order item not found",
+            extra=log_extra(event="api.order_item.not_found", http_status=404),
+        )
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "order item not found"},
+        )
 
     @app.exception_handler(InvalidOrderTransition)
     async def invalid_order_transition_handler(

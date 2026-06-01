@@ -6,12 +6,12 @@ import pytest
 from app.models.models import Order, OrderItem, OrderStatus
 from app.services.checkout import (
     IdempotencyInProgress,
-    OrderNotFound,
     OrderNotPayable,
     build_checkout_payload,
     read_idempotency,
     validate_order,
 )
+from app.services.orders import OrderNotFound
 
 # --- pure helpers ---
 
