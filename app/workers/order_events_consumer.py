@@ -5,12 +5,10 @@ from json import JSONDecodeError
 
 from aio_pika.abc import AbstractIncomingMessage
 
+from app.events import ORDER_CANCELLED, ORDER_PAID, ORDER_REFUNDED
 from app.log_config import configure_logging
 from app.logging_context import log_context, log_extra
 from app.messaging import (
-    ORDER_CANCELLED_ROUTING_KEY,
-    ORDER_PAID_ROUTING_KEY,
-    ORDER_REFUNDED_ROUTING_KEY,
     _get_order_events_exchange,
     get_or_create_rabbit_connection,
 )
@@ -44,11 +42,11 @@ async def message_handler(message: AbstractIncomingMessage) -> None:
                 extra=log_extra(event="consumer.message.received"),
             )
 
-            if message.routing_key == ORDER_PAID_ROUTING_KEY:
+            if message.routing_key == ORDER_PAID:
                 handle_order_paid(payload)
-            elif message.routing_key == ORDER_CANCELLED_ROUTING_KEY:
+            elif message.routing_key == ORDER_CANCELLED:
                 handle_order_cancelled(payload)
-            elif message.routing_key == ORDER_REFUNDED_ROUTING_KEY:
+            elif message.routing_key == ORDER_REFUNDED:
                 handle_order_refunded(payload)
             else:
                 logger.warning(
@@ -88,9 +86,9 @@ async def main() -> None:
     async with connection.channel() as channel:
         exchange = await _get_order_events_exchange(channel)
         queue = await channel.declare_queue(name=ORDER_EVENTS_QUEUE, durable=True)
-        await queue.bind(exchange, routing_key=ORDER_PAID_ROUTING_KEY)
-        await queue.bind(exchange, routing_key=ORDER_CANCELLED_ROUTING_KEY)
-        await queue.bind(exchange, routing_key=ORDER_REFUNDED_ROUTING_KEY)
+        await queue.bind(exchange, routing_key=ORDER_PAID)
+        await queue.bind(exchange, routing_key=ORDER_CANCELLED)
+        await queue.bind(exchange, routing_key=ORDER_REFUNDED)
 
         await queue.consume(message_handler)
 

@@ -7,6 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.events import ORDER_REFUNDED
 from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
 
@@ -90,5 +91,5 @@ async def test_stripe_webhook_refund_created(
 
     outbox_messages = (await db_session.execute(select(Outbox))).scalars().all()
     assert len(outbox_messages) == 1
-    assert outbox_messages[0].event_type == "order.refunded"
+    assert outbox_messages[0].event_type == ORDER_REFUNDED
     assert outbox_messages[0].payload["refunded_at"] == order.refunded_at.isoformat()

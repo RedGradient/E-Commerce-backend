@@ -3,6 +3,7 @@ import json
 import aio_pika
 
 from app.config import settings
+from app.events import ORDER_CANCELLED, ORDER_PAID, ORDER_REFUNDED
 
 _rabbit_client: aio_pika.abc.AbstractRobustConnection | None = None
 
@@ -22,12 +23,6 @@ async def dispose_rabbit():
 
 
 ORDER_EVENTS_EXCHANGE = "order.events"
-
-
-ORDER_PAID_ROUTING_KEY = "order.paid"
-ORDER_PROCESSING_ROUTING_KEY = "order.processing"
-ORDER_CANCELLED_ROUTING_KEY = "order.cancelled"
-ORDER_REFUNDED_ROUTING_KEY = "order.refunded"
 
 
 async def _get_order_events_exchange(
@@ -54,7 +49,7 @@ async def publish_order_paid(payload: dict) -> None:
 
         await exchange.publish(
             message=message,
-            routing_key=ORDER_PAID_ROUTING_KEY,
+            routing_key=ORDER_PAID,
         )
 
 
@@ -72,7 +67,7 @@ async def publish_order_cancelled(payload: dict) -> None:
 
         await exchange.publish(
             message=message,
-            routing_key=ORDER_CANCELLED_ROUTING_KEY,
+            routing_key=ORDER_CANCELLED,
         )
 
 
@@ -90,5 +85,5 @@ async def publish_order_refunded(payload: dict) -> None:
 
         await exchange.publish(
             message=message,
-            routing_key=ORDER_REFUNDED_ROUTING_KEY,
+            routing_key=ORDER_REFUNDED,
         )

@@ -13,6 +13,7 @@ from app.domain.order_state_machine import (
     apply_payment_succeeded,
     apply_refund,
 )
+from app.events import ORDER_PAID, ORDER_REFUNDED
 from app.logging_context import log_extra, update_log_context
 from app.models.models import Order
 from app.models.outbox import Outbox
@@ -31,7 +32,7 @@ def _is_outbox_dedup_hit(err: IntegrityError) -> bool:
 
 def outbox_checkout_message(order: Order, dedup_key: str) -> Outbox:
     return Outbox(
-        event_type="order.paid",
+        event_type=ORDER_PAID,
         dedup_key=dedup_key,
         order_id=order.id,
         payload=build_checkout_payload(order),
@@ -46,7 +47,7 @@ def outbox_refund_message(
     dedup_key: str,
 ) -> Outbox:
     return Outbox(
-        event_type="order.refunded",
+        event_type=ORDER_REFUNDED,
         dedup_key=dedup_key,
         order_id=order.id,
         payload=build_refund_payload(order, refunded_at=refunded_at),
@@ -169,7 +170,7 @@ async def handle_payment_intent_succeeded(
                 extra=log_extra(
                     event="outbox.dedup_hit",
                     dedup_key=dedup_key,
-                    dedup_scope="order.paid",
+                    dedup_scope=ORDER_PAID,
                 ),
             )
             return {"result": "OK"}
@@ -178,7 +179,7 @@ async def handle_payment_intent_succeeded(
             extra=log_extra(
                 event="outbox.persist_failed",
                 dedup_key=dedup_key,
-                dedup_scope="order.paid",
+                dedup_scope=ORDER_PAID,
                 db_error=str(err.orig),
             ),
         )
@@ -262,7 +263,7 @@ async def handle_payment_refunded(
                 extra=log_extra(
                     event="outbox.dedup_hit",
                     dedup_key=dedup_key,
-                    dedup_scope="order.refunded",
+                    dedup_scope=ORDER_REFUNDED,
                 ),
             )
             return {"result": "OK"}
@@ -271,7 +272,7 @@ async def handle_payment_refunded(
             extra=log_extra(
                 event="outbox.persist_failed",
                 dedup_key=dedup_key,
-                dedup_scope="order.refunded",
+                dedup_scope=ORDER_REFUNDED,
                 db_error=str(err.orig),
             ),
         )

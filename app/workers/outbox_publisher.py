@@ -6,12 +6,10 @@ from datetime import UTC, datetime
 import prometheus_client
 from sqlalchemy import select
 
+from app.events import ORDER_CANCELLED, ORDER_PAID, ORDER_REFUNDED
 from app.log_config import configure_logging
 from app.logging_context import log_context, log_extra
 from app.messaging import (
-    ORDER_CANCELLED_ROUTING_KEY,
-    ORDER_PAID_ROUTING_KEY,
-    ORDER_REFUNDED_ROUTING_KEY,
     publish_order_cancelled,
     publish_order_paid,
     publish_order_refunded,
@@ -28,11 +26,11 @@ MAX_ATTEMPTS: int = 5
 
 
 async def publish_by_event(event_type: str, payload: dict) -> bool:
-    if event_type == ORDER_PAID_ROUTING_KEY:
+    if event_type == ORDER_PAID:
         await publish_order_paid(payload)
-    elif event_type == ORDER_CANCELLED_ROUTING_KEY:
+    elif event_type == ORDER_CANCELLED:
         await publish_order_cancelled(payload)
-    elif event_type == ORDER_REFUNDED_ROUTING_KEY:
+    elif event_type == ORDER_REFUNDED:
         await publish_order_refunded(payload)
     else:
         return False

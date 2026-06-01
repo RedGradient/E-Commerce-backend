@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.order_state_machine import apply_cancellation, is_cancellation_allowed
+from app.events import ORDER_CANCELLED
 from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
@@ -20,7 +21,7 @@ def _is_outbox_dedup_hit(err: IntegrityError) -> bool:
 
 def outbox_cancel_message(order: Order, *, dedup_key: str, payload: dict) -> Outbox:
     return Outbox(
-        event_type="order.cancelled",
+        event_type=ORDER_CANCELLED,
         dedup_key=dedup_key,
         order_id=order.id,  # type: ignore[arg-type]
         payload=payload,
@@ -62,7 +63,7 @@ class CancellationService:
                         extra=log_extra(
                             event="outbox.dedup_hit",
                             dedup_key=result.dedup_key,
-                            dedup_scope="order.cancelled",
+                            dedup_scope=ORDER_CANCELLED,
                         ),
                     )
                     return result.payload
@@ -71,7 +72,7 @@ class CancellationService:
                     extra=log_extra(
                         event="outbox.persist_failed",
                         dedup_key=result.dedup_key,
-                        dedup_scope="order.cancelled",
+                        dedup_scope=ORDER_CANCELLED,
                         db_error=str(err.orig),
                     ),
                 )
@@ -96,7 +97,7 @@ class CancellationService:
         apply_cancellation(order, reason=reason, cancelled_at=cancelled_at)
 
         payload = build_cancel_payload(order, cancelled_at=cancelled_at)
-        dedup_key = f"order.cancelled:{order.id}"
+        dedup_key = f"{ORDER_CANCELLED}:{order.id}"
         session.add(outbox_cancel_message(order, dedup_key=dedup_key, payload=payload))
 
         return CancelInSessionResult(payload=payload, dedup_key=dedup_key)
