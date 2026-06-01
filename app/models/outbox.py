@@ -11,15 +11,13 @@ from app.models.base import Base
 class Outbox(Base):
     __tablename__ = "outbox"
     __table_args__ = (
-        # Воркер: WHERE published_at IS NULL AND failed_at IS NULL ORDER BY id
-        # Ускоряет получение pending сообщений в workers.outbox_publisher
+        # Speeds up fetching pending outbox-es in workers.outbox_publisher
         Index(
             "ix_outbox_pending_id",
             "id",
             postgresql_where=text("published_at IS NULL AND failed_at IS NULL"),
         ),
-        # Дедуп: не должно быть записей с одним и тем же dedup_key
-        # Это нужно для того, чтобы предотвратить повторную отправку сообщения в очередь
+        # Dedup: no two rows may share the same dedup_key
         Index(
             "uq_outbox_dedup_key",
             "dedup_key",
