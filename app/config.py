@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     rabbitmq_user: str = "guest"
     rabbitmq_password: str = "guest"
 
+    payments_provider: str = "mock"  # mock | stripe
     stripe_api_key: str = "replace-with-secret"
 
     webhook_secret_key: str = "replace-with-secret"
@@ -69,6 +70,10 @@ class Settings(BaseSettings):
             f"amqp://{self.rabbitmq_user}:{self.rabbitmq_password}"
             f"@{self.rabbitmq_host}:{self.rabbitmq_port}/"
         )
+
+    @property
+    def stripe_mock_enabled(self) -> bool:
+        return self.payments_provider.lower() == "mock"
 
 
 settings = Settings()

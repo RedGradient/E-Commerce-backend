@@ -1,5 +1,6 @@
 import logging
 from decimal import ROUND_HALF_UP, Decimal
+from uuid import uuid4
 
 import stripe
 from pydantic import BaseModel
@@ -31,7 +32,11 @@ class StripePaymentError(Exception):
 
 class StripeClient:
     def __init__(self) -> None:
-        self._client = stripe.StripeClient(api_key=settings.stripe_api_key)
+        self._use_mock = settings.stripe_mock_enabled
+        if self._use_mock:
+            self._client = None
+        else:
+            self._client = stripe.StripeClient(api_key=settings.stripe_api_key)
 
     async def healthcheck(self) -> bool:
         return True
@@ -48,11 +53,30 @@ class StripeClient:
     ) -> StripePaymentIntent:
         order_id = metadata.get("order_id") if metadata else None
 
+        if self._use_mock:
+            payment_intent_id = f"pi_mock_{uuid4().hex[:16]}"
+            logger.info(
+                "Mock payment_intent created",
+                extra=log_extra(
+                    event="stripe.mock.payment_intent.created",
+                    order_id=order_id,
+                    payment_intent_id=payment_intent_id,
+                ),
+            )
+            return StripePaymentIntent(
+                id=payment_intent_id,
+                status="succeeded",
+                amount=amount,
+                currency=currency.lower(),
+            )
+
         amount_cents = int(
             (amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         )
 
         try:
+            if self._client is None:
+                raise StripePaymentError("Stripe client is not initialized")
             payment_intent = await self._client.v1.payment_intents.create_async(
                 params={
                     "amount": amount_cents,
@@ -111,7 +135,27 @@ class StripeClient:
         order_id: int,
         payment_intent_id: str,
     ) -> StripeRefund:
+        if self._use_mock:
+            refund_id = f"re_mock_{uuid4().hex[:16]}"
+            logger.info(
+                "Mock refund created",
+                extra=log_extra(
+                    event="stripe.mock.refund.created",
+                    order_id=order_id,
+                    payment_intent_id=payment_intent_id,
+                    stripe_refund_id=refund_id,
+                ),
+            )
+            return StripeRefund(
+                id=refund_id,
+                status="succeeded",
+                payment_intent_id=payment_intent_id,
+                amount=Decimal("0"),
+            )
+
         try:
+            if self._client is None:
+                raise StripePaymentError("Stripe client is not initialized")
             refund = await self._client.v1.refunds.create_async(
                 params={
                     "payment_intent": payment_intent_id,
