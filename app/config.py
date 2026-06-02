@@ -29,7 +29,6 @@ class Settings(BaseSettings):
     rabbitmq_user: str = "guest"
     rabbitmq_password: str = "guest"
 
-    stripe_base_url: str = "https://api.stripe.com"
     stripe_api_key: str = "replace-with-secret"
 
     webhook_secret_key: str = "replace-with-secret"

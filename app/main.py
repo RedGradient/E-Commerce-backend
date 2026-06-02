@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
     await dispose_engine()
     await dispose_redis()
     await dispose_rabbit()
-    await app.state.stripe.close()
+
     logger.info(
         "Application shutdown complete",
         extra=log_extra(event="app.shutdown.complete"),

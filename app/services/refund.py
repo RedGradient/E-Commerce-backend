@@ -2,11 +2,10 @@ import logging
 from datetime import datetime
 from typing import Any
 
-import stripe
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.domain.order_state_machine import is_refund_allowed
+from app.integrations.stripe_client import StripeClient, StripePaymentError
 from app.logging_context import log_context, log_extra
 from app.models.models import Order, OrderStatus
 from app.services.orders import OrderNotFound
@@ -30,10 +29,8 @@ class RefundFailed(Exception):
 
 
 class RefundService:
-    def __init__(self, stripe_client: stripe.StripeClient | None = None) -> None:
-        self._stripe = stripe_client or stripe.StripeClient(
-            api_key=settings.stripe_api_key
-        )
+    def __init__(self, stripe_client: StripeClient | None = None) -> None:
+        self._stripe = stripe_client or StripeClient()
 
     async def refund(self, order_id: int, session: AsyncSession) -> dict:
         with log_context(order_id=order_id):
@@ -42,21 +39,14 @@ class RefundService:
             payment_intent_id = order.payment_intent_id
 
             try:
-                refund = await self._stripe.v1.refunds.create_async(
-                    params={
-                        "payment_intent": payment_intent_id,
-                        "reason": "requested_by_customer",
-                    },  # type: ignore
-                    options={"idempotency_key": f"refund-order-{order.id}"},
+                refund = await self._stripe.refund(
+                    order_id=order.id,
+                    payment_intent_id=payment_intent_id,  # type: ignore[arg-type]
                 )
-            except stripe.StripeError as err:
-                logger.error(
-                    "Stripe refund failed",
-                    extra=log_extra(
-                        event="refund.stripe_failed",
-                        payment_intent_id=payment_intent_id,
-                        error=str(err),
-                    ),
+            except StripePaymentError as err:
+                logger.warning(
+                    "Refund request failed",
+                    extra=log_extra(event="refund.failed", error=str(err)),
                 )
                 raise RefundFailed() from err
 
