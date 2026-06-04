@@ -8,7 +8,7 @@ class Settings(BaseSettings):
         env_file=os.getenv("ENV_FILE"), env_file_encoding="utf-8"
     )
 
-    app_name: str = "commerce-orchestrator"
+    app_name: str = "E-Commerce-backend"
     app_env: str = "dev"
     log_level: str = "INFO"
     log_format: str = "auto"  # auto | json | text
