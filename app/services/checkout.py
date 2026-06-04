@@ -10,7 +10,7 @@ from app.cache import (
     save_idempotency_result,
 )
 from app.domain.order_state_machine import apply_start_payment, is_checkout_allowed
-from app.integrations.stripe_client import (
+from app.integrations.stripe import (
     StripeClient,
     StripePaymentError,
     StripePaymentIntent,

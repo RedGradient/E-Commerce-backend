@@ -31,8 +31,9 @@ class Settings(BaseSettings):
 
     payments_provider: str = "mock"  # mock | stripe
     stripe_api_key: str = "replace-with-secret"
+    stripe_webhook_base_url: str = "http://127.0.0.1:8000"
 
-    webhook_secret_key: str = "replace-with-secret"
+    webhook_secret_key: str = "whsec_dev_secret"
 
     default_idempotency_ttl_seconds: int = 24 * 60 * 60
 

@@ -14,7 +14,7 @@ from app.infra import (
     dispose_engine,
     get_or_create_db_engine,
 )
-from app.integrations.stripe_client import StripeClient
+from app.integrations.stripe import StripeClient
 from app.log_config import configure_logging
 from app.logging_context import log_extra
 from app.messaging import dispose_rabbit, get_or_create_rabbit_connection
@@ -121,17 +121,6 @@ async def ready() -> dict[str, str]:
         "rabbitmq",
         lambda: check_rabbit(app.state.rabbit),
     )
-
-    stripe_ok = await app.state.stripe.healthcheck()
-    if not stripe_ok:
-        logger.error(
-            "Readiness check failed",
-            extra=log_extra(event="health.ready.failed", check="stripe"),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="stripe unavailable",
-        )
 
     logger.debug(
         "Readiness checks passed",
