@@ -28,11 +28,11 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
-config.set_main_option("sqlalchemy.url", settings.postgres_sync_dsn)
+
+def _ensure_sqlalchemy_url() -> None:
+    if config.get_main_option("sqlalchemy.url"):
+        return
+    config.set_main_option("sqlalchemy.url", settings.postgres_sync_dsn)
 
 
 def run_migrations_offline() -> None:
@@ -47,6 +47,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
+    _ensure_sqlalchemy_url()
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -66,6 +67,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    _ensure_sqlalchemy_url()
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
