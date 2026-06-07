@@ -1,4 +1,15 @@
 services:
+  migrate:
+    build: .
+    container_name: commerce_migrate
+    env_file:
+      - .env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build: .
     container_name: commerce_api
@@ -9,6 +20,8 @@ services:
     volumes:
       - .:/app
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -16,13 +29,6 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
-    # This command reloads fastapi once code changes
-    # command: >
-    #   uvicorn app.main:app
-    #   --host 0.0.0.0
-    #   --port 8000
-    #   --reload
-    #   --no-access-log
 
   order-events-worker:
     build: .
@@ -46,6 +52,8 @@ services:
       volumes:
       - ./app:/app/app
       depends_on:
+        migrate:
+          condition: service_completed_successfully
         rabbitmq:
           condition: service_healthy
       restart: unless-stopped
@@ -59,6 +67,8 @@ services:
     volumes:
       - ./app:/app/app
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     restart: unless-stopped

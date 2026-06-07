@@ -30,7 +30,8 @@ target_metadata = Base.metadata
 
 
 def _ensure_sqlalchemy_url() -> None:
-    if config.get_main_option("sqlalchemy.url"):
+    url = config.get_main_option("sqlalchemy.url")
+    if url and not url.startswith("driver://"):
         return
     config.set_main_option("sqlalchemy.url", settings.postgres_sync_dsn)
 
