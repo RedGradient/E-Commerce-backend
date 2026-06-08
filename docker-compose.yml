@@ -10,6 +10,19 @@ services:
         condition: service_healthy
     restart: "no"
 
+  seed-products:
+    build: .
+    container_name: commerce_seed_products
+    env_file:
+      - .env
+    command: ["python", "-m", "app.scripts.create_products"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build: .
     container_name: commerce_api
@@ -21,6 +34,8 @@ services:
       - .:/app
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      seed-products:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
