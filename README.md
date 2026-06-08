@@ -8,6 +8,24 @@ The project was built with a focus on production-style patterns: fixed order sta
 
 ---
 
+## Quick start
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+On the first run, Compose will automatically:
+
+1. Apply database migrations  
+2. Seed sample products  
+3. Start the API, workers, and observability stack
+
+When logs settle, open <http://localhost:8000/docs> — the API is ready to use.  
+No Stripe account is required: .env.example uses PAYMENTS_PROVIDER=mock.
+
+---
+
 ## What it does
 
 - `POST /orders` **Create orders**
@@ -32,22 +50,15 @@ Payment and refund **final state** is applied from **Stripe webhooks** (signatur
 
 ---
 
-## Run
-
-```bash
-docker compose up --build
-```
-
-
 ### Run the full stack
 
 | Service | URL |
 |---|---|
-| API | http://localhost:8000 |
-| API docs | http://localhost:8000/docs |
-| Grafana | http://localhost:3000 (`admin` / `admin`) |
-| Prometheus | http://localhost:9090 |
-| RabbitMQ UI | http://localhost:15672 (`guest` / `guest`) |
+| API | <http://localhost:8000> |
+| API docs | <http://localhost:8000/docs> |
+| Grafana | <http://localhost:3000> (`admin` / `admin`) |
+| Prometheus | <http://localhost:9090> |
+| RabbitMQ UI | <http://localhost:15672> (`guest` / `guest`) |
 
 ---
 
