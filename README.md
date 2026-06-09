@@ -1,3 +1,16 @@
+```
+API (FastAPI)
+  ├── Orders / Products / Webhooks / Metrics
+  ├── Services: checkout, cancellation, refund, orders
+  ├── Domain: order state machine (Created → Processing → Paid / Cancelled / Refunded)
+  └── Outbox pattern → RabbitMQ
+
+Workers:
+  ├── outbox_publisher      — publish order.paid / cancelled / refunded
+  ├── order_events_consumer — process events from RabbitMQ
+  └── order_cancellator     — cancel stale Created orders
+```
+
 # E-Commerce Backend
 
 [![Coverage](https://codecov.io/gh/RedGradient/E-Commerce-backend/branch/main/graph/badge.svg)](https://codecov.io/gh/RedGradient/E-Commerce-backend)
