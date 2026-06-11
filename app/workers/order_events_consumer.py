@@ -1,17 +1,24 @@
 import asyncio
 import json
 import logging
+from datetime import UTC, datetime
 from json import JSONDecodeError
 
 from aio_pika.abc import AbstractIncomingMessage
 
 from app.events import ORDER_CANCELLED, ORDER_PAID, ORDER_REFUNDED
 from app.log_config import configure_logging
-from app.logging_context import log_context, log_extra
+from app.logging_context import (
+    clear_log_context,
+    log_extra,
+    update_log_context,
+)
 from app.messaging import (
     _get_order_events_exchange,
     get_or_create_rabbit_connection,
 )
+from app.models.processed_events import ProcessedEvent
+from app.session import get_sessionmaker
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -33,26 +40,65 @@ async def message_handler(message: AbstractIncomingMessage) -> None:
             )
             return
 
-        with log_context(
+        required_keys = {"dedup_key", "event_type", "order_id"}
+        missing_keys = required_keys - payload.keys()
+        if missing_keys:
+            logger.error(
+                "The payload is missing required keys",
+                extra=log_extra(
+                    event="consumer.message.missing_keys",
+                    routing_key=message.routing_key,
+                    missing_keys=sorted(missing_keys),
+                ),
+            )
+            return
+
+        update_log_context(
             routing_key=message.routing_key,
             order_id=payload.get("order_id"),
-        ):
-            logger.info(
-                "RabbitMQ message received",
-                extra=log_extra(event="consumer.message.received"),
+        )
+
+        async with get_sessionmaker()() as session:
+            dedup_key = payload["dedup_key"]
+            if await session.get(ProcessedEvent, dedup_key):
+                logger.info(
+                    "Skip RabbitMQ duplicate message",
+                    extra=log_extra(
+                        event="consumer.message.duplicate",
+                        dedup_key=dedup_key,
+                    ),
+                )
+                return
+
+            session.add(
+                ProcessedEvent(
+                    dedup_key=payload["dedup_key"],
+                    event_type=payload["event_type"],
+                    order_id=payload["order_id"],
+                    processed_at=datetime.now(UTC),
+                )
             )
 
-            if message.routing_key == ORDER_PAID:
-                handle_order_paid(payload)
-            elif message.routing_key == ORDER_CANCELLED:
-                handle_order_cancelled(payload)
-            elif message.routing_key == ORDER_REFUNDED:
-                handle_order_refunded(payload)
-            else:
-                logger.warning(
-                    "Unhandled RabbitMQ routing key",
-                    extra=log_extra(event="consumer.message.unhandled"),
-                )
+            await session.commit()
+
+        logger.info(
+            "RabbitMQ message received",
+            extra=log_extra(event="consumer.message.received"),
+        )
+
+        if message.routing_key == ORDER_PAID:
+            handle_order_paid(payload)
+        elif message.routing_key == ORDER_CANCELLED:
+            handle_order_cancelled(payload)
+        elif message.routing_key == ORDER_REFUNDED:
+            handle_order_refunded(payload)
+        else:
+            logger.warning(
+                "Unhandled RabbitMQ routing key",
+                extra=log_extra(event="consumer.message.unhandled"),
+            )
+
+        clear_log_context()
 
 
 def handle_order_paid(msg: dict) -> None:

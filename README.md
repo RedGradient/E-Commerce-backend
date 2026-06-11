@@ -17,7 +17,7 @@ Workers:
 
 The project is an e-commerce backend that handles order payments with **Stripe**, domain events via the **transactional outbox**, and runs API and background workers in **Docker Compose**.
 
-The project was built with a focus on production-style patterns: fixed order state transitions via a state machine, idempotent checkout, webhook-driven updates, observability through metrics, and logging infrastructure.
+The project was built with a focus on production-style patterns: fixed order state transitions via a state machine, idempotent checkout, event-idempotent RabbitMQ consumer, webhook-driven updates, observability through metrics, and logging infrastructure.
 
 ---
 

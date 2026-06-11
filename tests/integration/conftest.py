@@ -26,7 +26,7 @@ POSTGRES_PASSWORD = "commerce_pass"
 REDIS_IMAGE = "redis:7-alpine"
 REDIS_PORT = 6379
 
-TABLES = ("outbox", "order_items", "orders", "products")
+TABLES = ("outbox", "order_items", "orders", "products", "processed_events")
 
 
 class OrderItemSpec(TypedDict, total=False):

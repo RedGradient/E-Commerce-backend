@@ -25,13 +25,16 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS: int = 5
 
 
-async def publish_by_event(event_type: str, payload: dict) -> bool:
+async def publish_by_event(event_type: str, dedup_key: str, payload: dict) -> bool:
+    extended_payload = payload.copy()
+    extended_payload["event_type"] = event_type
+    extended_payload["dedup_key"] = dedup_key
     if event_type == ORDER_PAID:
-        await publish_order_paid(payload)
+        await publish_order_paid(extended_payload)
     elif event_type == ORDER_CANCELLED:
-        await publish_order_cancelled(payload)
+        await publish_order_cancelled(extended_payload)
     elif event_type == ORDER_REFUNDED:
-        await publish_order_refunded(payload)
+        await publish_order_refunded(extended_payload)
     else:
         return False
     return True
@@ -74,7 +77,11 @@ async def main() -> None:
                         event_type=msg.event_type,
                     ):
                         try:
-                            if not await publish_by_event(msg.event_type, msg.payload):
+                            if not await publish_by_event(
+                                msg.event_type,
+                                msg.dedup_key,
+                                msg.payload,
+                            ):
                                 error = f"unknown event_type {msg.event_type}"
                                 logger.warning(
                                     "Outbox publish skipped",
