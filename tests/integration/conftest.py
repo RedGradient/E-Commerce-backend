@@ -163,6 +163,10 @@ async def _database_patch(
             "app.workers.order_cancellator.get_sessionmaker",
             return_value=session_factory,
         ),
+        patch(
+            "app.workers.order_events_consumer.get_sessionmaker",
+            return_value=session_factory,
+        ),
     ):
         yield session_factory
 
