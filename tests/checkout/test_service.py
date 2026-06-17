@@ -10,9 +10,9 @@ from app.integrations.stripe import StripeClient
 from app.models.models import Order, OrderStatus
 from app.services.checkout import CheckoutService
 
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-@pytest.mark.integration
-@pytest.mark.asyncio
+
 async def test_checkout_ok(
     order_factory: Callable[..., Awaitable[Order]],
     db_session: AsyncSession,
@@ -57,8 +57,6 @@ async def test_checkout_ok(
     assert cached["payload"] == payload
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 async def test_checkout_idempotency_cache(
     order_factory: Callable[..., Awaitable[Order]],
     db_session: AsyncSession,

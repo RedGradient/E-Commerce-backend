@@ -6,9 +6,9 @@ import pytest
 from app.models.models import Order, OrderStatus
 from app.workers import order_cancellator
 
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-@pytest.mark.integration
-@pytest.mark.asyncio
+
 async def test_order_cancellator_is_cancelling(
     order_factory: Callable[..., Awaitable[Order]],
 ):
@@ -27,8 +27,6 @@ async def test_order_cancellator_is_cancelling(
     assert cancelled_count == 10
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 async def test_order_cancellator_is_not_cancelling(
     order_factory: Callable[..., Awaitable[Order]],
 ):

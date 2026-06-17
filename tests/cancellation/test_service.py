@@ -9,9 +9,9 @@ from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
 from app.services.cancellation import CancellationService
 
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-@pytest.mark.integration
-@pytest.mark.asyncio
+
 async def test_cancellation_ok(
     order_factory: Callable[..., Awaitable[Order]],
     db_session: AsyncSession,

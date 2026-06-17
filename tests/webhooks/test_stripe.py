@@ -11,9 +11,9 @@ from app.events import ORDER_REFUNDED
 from app.models.models import Order, OrderStatus
 from app.models.outbox import Outbox
 
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-@pytest.mark.integration
-@pytest.mark.asyncio
+
 async def test_stripe_webhook_success(
     order_factory: Callable[..., Awaitable[Order]],
     db_session: AsyncSession,
@@ -56,8 +56,6 @@ async def test_stripe_webhook_success(
     assert outbox_messages[0].order_id == order.id
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
 async def test_stripe_webhook_refund_created(
     order_factory: Callable[..., Awaitable[Order]],
     db_session: AsyncSession,

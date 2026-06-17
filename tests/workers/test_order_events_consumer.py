@@ -1,9 +1,4 @@
-import json
-from contextlib import asynccontextmanager
-from unittest.mock import MagicMock
-
 import pytest
-from aio_pika.abc import AbstractIncomingMessage
 from sqlalchemy import func, select
 
 from app.events import ORDER_PAID
@@ -13,31 +8,12 @@ from app.workers.order_events_consumer import (
     MessageHandlerResult,
     message_handler,
 )
+from tests.helpers.rabbit import make_incoming_message, make_invalid_json_message
 
-
-@asynccontextmanager
-async def _noop_process(*args, **kwargs):
-    yield
-
-
-def make_incoming_message(payload: dict, routing_key: str) -> MagicMock:
-    message = MagicMock(spec=AbstractIncomingMessage)
-    message.body = json.dumps(payload).encode("utf-8")
-    message.routing_key = routing_key
-    message.process = MagicMock(side_effect=_noop_process)
-    return message
-
-
-def make_invalid_json_message(routing_key: str = ORDER_PAID) -> MagicMock:
-    message = MagicMock(spec=AbstractIncomingMessage)
-    message.body = b"{not-json"
-    message.routing_key = routing_key
-    message.process = MagicMock(side_effect=_noop_process)
-    return message
+pytestmark = pytest.mark.asyncio
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_worker_ok(db_session) -> None:
     payload = {
         "dedup_key": "stripe:evt_mock_123",
@@ -59,7 +35,6 @@ async def test_worker_ok(db_session) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_worker_duplicate_message(db_session) -> None:
     payload = {
         "dedup_key": "stripe:evt_mock_123",
@@ -90,12 +65,10 @@ async def test_worker_duplicate_message(db_session) -> None:
     assert count == 1
 
 
-@pytest.mark.asyncio
 async def test_worker_missing_key() -> None:
     payload = {
         "dedup_key": "stripe:evt_mock_123",
         "order_id": 1,
-        # "event_type": ORDER_PAID   <--- missed key
     }
     message = make_incoming_message(payload, ORDER_PAID)
     result = await message_handler(message=message)
@@ -107,7 +80,6 @@ async def test_worker_missing_key() -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_worker_unhandled_routing_key(db_session) -> None:
     payload = {
         "dedup_key": "stripe:evt_unhandled_123",
@@ -124,7 +96,6 @@ async def test_worker_unhandled_routing_key(db_session) -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_worker_invalid_json() -> None:
     message = make_invalid_json_message(ORDER_PAID)
     result = await message_handler(message=message)
