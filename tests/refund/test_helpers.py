@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from app.domain.order_state_machine import apply_refund
-from app.models.models import Order, OrderItem, OrderStatus
+from app.models import Order, OrderItem, OrderStatus
 from app.services.orders import OrderNotFound
 from app.services.refund import (
     OrderAlreadyRefunded,

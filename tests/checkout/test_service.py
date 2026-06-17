@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache import get_idempotency_result
 from app.integrations.stripe import StripeClient
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.services.checkout import CheckoutService
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]

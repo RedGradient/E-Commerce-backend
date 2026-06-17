@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.domain.order_state_machine import apply_cancellation
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.services.cancellation import (
     OrderAlreadyCancelled,
     OrderNotCancellable,

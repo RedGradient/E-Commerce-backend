@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.order_state_machine import apply_cancellation, is_cancellation_allowed
 from app.events import ORDER_CANCELLED
 from app.logging_context import log_context, log_extra
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.models.outbox import Outbox
 from app.services.orders import OrderNotFound
 

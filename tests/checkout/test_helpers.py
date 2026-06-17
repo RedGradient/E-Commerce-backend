@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.models import Order, OrderItem, OrderStatus
+from app.models import Order, OrderItem, OrderStatus
 from app.services.checkout import (
     IdempotencyInProgress,
     OrderNotPayable,

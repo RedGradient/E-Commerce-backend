@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.order_state_machine import is_refund_allowed
 from app.integrations.stripe import StripeClient, StripePaymentError
 from app.logging_context import log_context, log_extra
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.services.orders import OrderNotFound
 
 logger = logging.getLogger(__name__)

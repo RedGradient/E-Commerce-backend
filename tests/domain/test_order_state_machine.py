@@ -17,7 +17,7 @@ from app.domain.order_state_machine import (
     is_refund_allowed,
     require_transition,
 )
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 
 
 @pytest.mark.parametrize(

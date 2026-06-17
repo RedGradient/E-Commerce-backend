@@ -16,7 +16,7 @@ from app.integrations.stripe import (
     StripePaymentIntent,
 )
 from app.logging_context import log_context, log_extra
-from app.models.models import Order
+from app.models import Order
 from app.services.orders import OrderNotFound
 
 logger = logging.getLogger(__name__)

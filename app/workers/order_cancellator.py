@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.log_config import configure_logging
 from app.logging_context import log_context, log_extra
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.observability.metrics import record_order_cancellation
 from app.services.cancellation import (
     CancellationService,

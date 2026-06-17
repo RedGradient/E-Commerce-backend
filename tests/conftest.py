@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from alembic import command
-from app.models.models import Order
+from app.models import Order
 
 os.environ.setdefault("ENV_FILE", ".env.test")
 
@@ -201,7 +201,8 @@ async def _resolve_product(
     session: AsyncSession,
     item: OrderItemSpec,
 ):
-    from app.models.models import Product
+
+    from app.models import Product
 
     if product_id := item.get("product_id"):
         product = await session.get(Product, product_id)
@@ -228,7 +229,8 @@ async def _resolve_product(
 async def order_factory(
     db_session: AsyncSession,
 ) -> AsyncGenerator[Callable[..., Awaitable[Order]], None]:
-    from app.models.models import Order, OrderItem, OrderStatus
+
+    from app.models import Order, OrderItem, OrderStatus
 
     async def factory(**kwargs) -> Order:
         items_data: list[OrderItemSpec] | None = kwargs.pop("items", None)

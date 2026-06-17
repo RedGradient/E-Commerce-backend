@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.events import ORDER_CANCELLED
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.models.outbox import Outbox
 from app.services.cancellation import CancellationService
 

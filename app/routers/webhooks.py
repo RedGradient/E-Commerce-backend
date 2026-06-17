@@ -15,7 +15,7 @@ from app.domain.order_state_machine import (
 )
 from app.events import ORDER_PAID, ORDER_REFUNDED
 from app.logging_context import log_extra, update_log_context
-from app.models.models import Order
+from app.models import Order
 from app.models.outbox import Outbox
 from app.observability.metrics import record_webhook_event
 from app.services.checkout import build_checkout_payload

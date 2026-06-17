@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.events import ORDER_REFUNDED
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.models.outbox import Outbox
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]

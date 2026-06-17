@@ -14,7 +14,7 @@ from app.messaging import (
     publish_order_paid,
     publish_order_refunded,
 )
-from app.models.models import Order  # noqa: F401
+from app.models import Order  # noqa: F401
 from app.models.outbox import Outbox
 from app.observability.metrics import record_outbox_publish
 from app.session import get_sessionmaker

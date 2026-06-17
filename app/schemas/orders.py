@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.models import OrderStatus
+from app.models import OrderStatus
 
 Quantity = Annotated[int, Field(gt=0)]
 Money = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]

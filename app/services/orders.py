@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_context import log_extra
-from app.models.models import Order, OrderItem, Product
+from app.models import Order, OrderItem, Product
 from app.schemas.orders import OrderCreate, OrderItemCreate
 
 logger = logging.getLogger(__name__)

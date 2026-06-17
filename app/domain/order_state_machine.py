@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 
 
 class OrderEvent(Enum):

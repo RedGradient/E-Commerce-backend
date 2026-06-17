@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.models.models import Order, OrderStatus
+from app.models import Order, OrderStatus
 from app.workers import order_cancellator
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
