@@ -3,7 +3,7 @@ API (FastAPI)
   ├── Orders / Products / Webhooks / Metrics
   ├── Services: checkout, cancellation, refund, orders
   ├── Domain: order state machine (Created → Processing → Paid / Cancelled / Refunded)
-  └── Outbox pattern → RabbitMQ
+  └── RabbitMQ: Outbox pattern, event idempotency
 
 Workers:
   ├── outbox_publisher      — publish order.paid / cancelled / refunded
@@ -35,7 +35,7 @@ On the first run, Compose will automatically:
 3. Start the API, workers, and observability stack
 
 When logs settle, open <http://localhost:8000/docs> — the API is ready to use.  
-No Stripe account is required: .env.example uses PAYMENTS_PROVIDER=mock.
+No Stripe account is required: `.env.example` uses `PAYMENTS_PROVIDER=mock`.
 
 ---
 
@@ -83,4 +83,4 @@ Payment and refund **final state** is applied from **Stripe webhooks** (signatur
 | **order_events_consumer** | `app.workers.order_events_consumer` | Consumes `order.paid` / `order.cancelled` / `order.refunded` (logs; hook for digital fulfillment) |
 | **order_cancellator** | `app.workers.order_cancellator` | `run_batch()` selects stale `Created` orders and calls `CancellationService` |
 
-Cancellation timeout is configured in the worker as `STALE_ORDER_AFTER` (default `10` seconds in code).
+Cancellation timeout for `order_cancellator` service is configured in the worker as `STALE_ORDER_AFTER` (default `10` seconds in code).
