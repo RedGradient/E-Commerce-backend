@@ -47,7 +47,7 @@ services:
 
   order-events-worker:
     build: .
-    container_name: worker
+    container_name: order-events-worker
     env_file:
       - .env
     command: ["python", "-m", "app.workers.order_events_consumer"]
