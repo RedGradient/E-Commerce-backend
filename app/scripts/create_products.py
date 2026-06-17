@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra import dispose_engine
 from app.log_config import configure_logging
-from app.models.models import Product
+from app.logging_context import log_extra
+from app.models import Product
 from app.session import get_sessionmaker
 
 configure_logging()
@@ -55,7 +56,7 @@ async def create_products(session: AsyncSession) -> None:
 
     if created:
         await session.commit()
-        logger.info("Products seeded", extra={"created": created})
+        logger.info("Products seeded", extra=log_extra(created_count=created))
     else:
         logger.info("Products already seeded, nothing to do")
 
